@@ -3,10 +3,10 @@ import { Platform, Streamer, StreamStatus } from '../models';
 export interface IPlatformStreamerLiveTracker {
     readonly platform: Platform;
     
-    addStreamer(streamer: Streamer): Promise<void>;
-    removeStreamer(streamer: Streamer): Promise<boolean>;
-    getTrackedStreamers(streamer: Streamer): Promise<Streamer[]>;
-    isTracking(streamer: Streamer): Promise<boolean>;
+    addStreamer(name: string): Promise<void>;
+    removeStreamer(name: string): Promise<boolean>;
+    getTrackedStreamers(): Promise<string[]>;
+    isTracking(streamer: string): Promise<boolean>;
 
     onLive(callback: (status: StreamStatus) => void): void;
     onOffline(callback: (status: StreamStatus) => void): void;
