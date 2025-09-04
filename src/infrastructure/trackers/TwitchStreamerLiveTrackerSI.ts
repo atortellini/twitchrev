@@ -1,10 +1,17 @@
 import {IPlatformStreamerLiveTracker} from '../../domain/interfaces';
 import {Platform, Streamer, StreamStatus} from '../../domain/models';
-import {logger, Mutex, Strand} from '../../utils';
+import {logger, Mutex} from '../../utils';
+
+
+const STALE_MS = 24 * 60 * 60 * 1000;
 
 interface ResolvedStreamer extends Streamer {
   resolvedAt: Date;
 }
+
+type TrackerEvent = 'add'|'remove';
+type StatusCb = (status: StreamStatus) => void;
+type StreamerCb = (streamer: Streamer) => void;
 
 export class TwitchStreamerLiveTrackerSI implements
     IPlatformStreamerLiveTracker {
@@ -13,21 +20,20 @@ export class TwitchStreamerLiveTrackerSI implements
   private trackedStreamerMutex = new Mutex('tw_livetrkr_streamer_mtx');
   private trackedStreamers = new Set<string>();
   private resolvedStreamers = new Map<string, ResolvedStreamer>();
-  private isPolling = false;
-
-  private liveCallbacks: Array<(status: StreamStatus) => void> = [];
-  private offlineCallbacks: Array<(status: StreamStatus) => void> = [];
-  private addCallbacks: Array<(streamer: Streamer) => void> = [];
-  private removeCallbacks: Array<(streamer: Streamer) => void> = [];
 
   private pollingInterval: NodeJS.Timeout|null = null;
+  private isPolling = false;
+
+  private liveCallbacks: StatusCb[] = [];
+  private offlineCallbacks: StatusCb[] = [];
+  private addCallbacks: StreamerCb[] = [];
+  private removeCallbacks: StreamerCb[] = [];
 
 
   constructor(
       private twitchAPI: TwitchApi, private pollingIntervalMs: number = 60000) {
     logger.warn(
-        `Twitch live tracker: This implementation uses setInterval to perform its polling
-        which can result in infrequent results if polls don't complete within interval delay.`);
+        `Twitch live tracker: using setInterval; poll delays longer than the interval can skew results.`);
   }
 
   /**
@@ -47,116 +53,63 @@ export class TwitchStreamerLiveTrackerSI implements
    * WITH MULTIPLE ADDS WHERE SOME AWAIT FOR CHECKLIVESTATUS, SO FOR SIMPLICITY
    * JUST SLAPPED IT AT THE TOP
    */
-  async addStreamer(
-      name: string,
-      ): Promise<void> {
+  async addStreamer(name: string): Promise<void> {
     const name_lowered = name.toLowerCase();
 
-    await this.trackedStreamerMutex.acquire();
-    try {
+    return await this.trackedStreamerMutex.withLock(async () => {
       if (this.trackedStreamers.has(name_lowered)) {
         logger.info(`Twitch live tracker: Already tracking '${name_lowered}'`);
         return;
       }
 
-      let fastCheck: StreamStatus[]|null = null;
-      if (this.pollingInterval) {
-        try {
-          fastCheck = await this.twitchAPI.checkLiveStatus(name_lowered);
-        } catch (error) {
-          logger.error(
-              `Twitch live tracker: Error during live status fast-check for '${
-                  name}':`,
-              error);
-        }
-      }
+      const fastCheck = await this.tryFastCheck(name_lowered);
 
       this.trackedStreamers.add(name_lowered);
       logger.info(`Twitch live tracker: Added ${name_lowered}`);
-      try {
-        await this.emitModifyingEvent('add', name_lowered);
-      } catch (error) {
-        logger.error(
-            `Twitch live tracker: Failed to emit add event for '${name}':`,
-            error);
-      }
+      await this.safeEmit('add', name_lowered);
 
-      if (fastCheck && fastCheck.length) {
+      if (fastCheck?.length) {
         this.updateResolvedStreamerCache(fastCheck[0].streamer, new Date());
         this.processStatusUpdates(fastCheck);
       }
-    } finally {
-      this.trackedStreamerMutex.release();
-    }
+    });
   }
 
-  async removeStreamer(
-      name: string,
-      ): Promise<boolean> {
+  async removeStreamer(name: string): Promise<boolean> {
     const name_lowered = name.toLowerCase();
-    await this.trackedStreamerMutex.acquire();
-    try {
+    return await this.trackedStreamerMutex.withLock(async () => {
       const removed = this.trackedStreamers.delete(name_lowered);
       if (removed) {
         logger.info(`Twitch live tracker: Removed ${name_lowered}`);
-        try {
-          await this.emitModifyingEvent('remove', name_lowered);
-        } catch (error) {
-          logger.error(
-              `Twitch live tracker: Failed to emit remove event for '${name}':`,
-              error);
-        }
+        await this.safeEmit('remove', name_lowered);
       }
       return removed;
-    } finally {
-      this.trackedStreamerMutex.release();
-    }
+    });
   }
 
   async getTrackedStreamers(): Promise<Streamer[]> {
-    await this.trackedStreamerMutex.acquire();
-    try {
-      const currTracked = Array.from(this.trackedStreamers.values());
-      try {
-        return await this.retrieveValidResolvedStreamers(currTracked);
-      } catch (error) {
-        logger.error(
-            'Twitch live tracker: Error while retrieving tracked streamers:',
-            error);
-        throw error;
-      }
-    } finally {
-      this.trackedStreamerMutex.release();
-    }
+    return await this.trackedStreamerMutex.withLock(async () => {
+      const names = Array.from(this.trackedStreamers);
+      return this.retrieveValidResolvedStreamers(names);
+    });
   }
 
-  async isTracking(
-      name: string,
-      ): Promise<boolean> {
-    await this.trackedStreamerMutex.acquire();
-    const tracked = this.trackedStreamers.has(name.toLowerCase());
-    this.trackedStreamerMutex.release();
-    return tracked;
+  async isTracking(name: string): Promise<boolean> {
+    return await this.trackedStreamerMutex.withLock(
+        async () =>
+            Promise.resolve(this.trackedStreamers.has(name.toLowerCase())));
   }
 
-  onLive(
-      callback: (status: StreamStatus) => void,
-      ): void {
+  onLive(callback: StatusCb): void {
     this.liveCallbacks.push(callback);
   }
-  onOffline(
-      callback: (status: StreamStatus) => void,
-      ): void {
+  onOffline(callback: StatusCb): void {
     this.offlineCallbacks.push(callback);
   }
-  onAdded(
-      callback: (streamer: Streamer) => void,
-      ): void {
+  onAdded(callback: StreamerCb): void {
     this.addCallbacks.push(callback);
   }
-  onRemoved(
-      callback: (streamer: Streamer) => void,
-      ): void {
+  onRemoved(callback: StreamerCb): void {
     this.removeCallbacks.push(callback);
   }
 
@@ -184,26 +137,10 @@ export class TwitchStreamerLiveTrackerSI implements
     }
     logger.info('Twitch live tracker: Starting...');
 
-    const singlePoll = () => {
-      this.isPolling = true;
-      this.poll()
-          .catch(
-              (error) => logger.error(
-                  'Twitch live tracker: Error during polling:', error))
-          .finally(() => this.isPolling = false);
-    };
-
-    this.pollingInterval = setInterval(() => {
-      if (this.isPolling) {
-        logger.warn(`Twitch live tracker: Previous poll has not finished.
-                    Consider adjusting poll interval.`);
-        return;
-      }
-      singlePoll();
-    }, this.pollingIntervalMs);
+    this.schedulePoll();
+    this.runPoll();
 
     logger.info('Twitch live tracker: Running');
-    singlePoll();
   }
 
   async stop(): Promise<void> {
@@ -227,14 +164,56 @@ export class TwitchStreamerLiveTrackerSI implements
     logger.info('Twitch live tracker: Stopped');
   }
 
-  private async poll() {
-    await this.trackedStreamerMutex.acquire();
-    try {
-      if (this.trackedStreamers.size === 0) {
-        return;
-      }
-      const streamerNames = Array.from(this.trackedStreamers.values());
 
+  private schedulePoll(): void {
+    this.pollingInterval = setInterval(() => {
+      if (!this.isPolling)
+        this.runPoll();
+      else
+        logger.warn(`Twitch live tracker: Previous poll has not finished. 
+        Consider adjusting poll interval.`);
+    }, this.pollingIntervalMs);
+  }
+
+  private async runPoll(): Promise<void> {
+    this.isPolling = true;
+    try {
+      await this.poll();
+    } catch (error) {
+      logger.error('Twitch live tracker: Error during polling:', error);
+    } finally {
+      this.isPolling = false;
+    }
+  }
+
+  /**
+   * INFO:
+   * IN MY MIND POLL REQUIRES TRACKEDSTREAMERMUTEX SINCE, WHEN IT AWAITS
+   * FOR AN API CALL A REMOVE STREAMER METHOD COULD BE COMPLETELY INVOKED,
+   * ALONG WITH ALL REMOVE EVENT CALLBACKS BUT THEN A LIVE RESPONSE WILL STILL
+   * BE RECEIVED FOR THAT STREAMER EVENTUALLY. WHICH I GUESS ISNT THE WORst
+   * THING SINCE IT WOULD ONLY BE ONE POLL SO I THINK I WILL REMOVE THE MUTEX
+   * FOR NOW.
+   * ANOTHER REASON FOR A MUTEX BETWEEN ADD/POLL IS THAT, DEPENDING ON HOW THEIR
+   * INDEPENDENT POLLING INTERLEAVES, IT COULD BE THE CASE THAT ADD AWAITS ON
+   * EMITTING ITS ADD EVENT AFTER JUST RECEIVING THAT STREAMER A IS OFFLINE.
+   * HOWEVER, AT THAT MOMENT POLL'S QUERY TO THE TWITCH API RETURNS SAYING
+   * STREAMER A IS OFFLINE. SINCE THEIR EXECUTION HAS BEEN INTERLEAVED, IT'S
+   * INDETERMINATE AT THAT MOMENT WHAT THE STATE OF STREAMER A ACTUALLY IS UNTIL
+   * A LATER QUERY IS MADE THAT IS NOT INTERLEAVED. THIS CREATES AN ISSUE FOR
+   * THOSE LISTENING TO THE OFFLINE/ONLINE EVENTS. DEPENDING ON WHICH THE EVENT
+   * LOOP DECIDES TO CONTINUE EXECUTING FIRST, THE ONLINE OR OFFLINE COULD BE
+   * EMITTED FIRST, FOLLOWED BY THE OTHER. HOWEVER, WITH HAVING A MUTEX ITS
+   * ENSURED THAT THE MOST RECENT EVENT EMIT WILL REFLECT THE LATEST
+   * UNDERSTANDING OF THE STREAMER'S ONLINE STATUS. FOR THAT, I WILL BE KEEPING
+   * THE MUTEX
+   */
+  private async poll() {
+    return await this.trackedStreamerMutex.withLock(async () => {
+      if (this.trackedStreamers.size === 0) {
+        return
+      }
+      const streamerNames = Array.from(this.trackedStreamers);
       try {
         const statuses: StreamStatus[] =
             await this.twitchAPI.checkLiveStatus(streamerNames);
@@ -243,30 +222,49 @@ export class TwitchStreamerLiveTrackerSI implements
         this.updateResolvedStreamerCache(streamers, new Date());
         this.processStatusUpdates(statuses);
       } catch (error) {
-        logger.error(`Error polling Twitch:`, error);
+        logger.error('Twitch live tracker: Error polling Twitch:', error);
       }
-    } finally {
-      this.trackedStreamerMutex.release();
+    });
+  }
+
+  private async tryFastCheck(name: string): Promise<StreamStatus[]|null> {
+    if (!this.pollingInterval) return null;
+    try {
+      return await this.twitchAPI.checkLiveStatus(name);
+    } catch (error) {
+      logger.error(
+          `Twitch live tracker: Fast-check error for '${name}':`, error);
+      return null;
     }
   }
 
-  private processStatusUpdates(
-      statuses: StreamStatus[],
-      ): void {
+
+  private async safeEmit(event: TrackerEvent, streamerName: string):
+      Promise<void> {
+    try {
+      const [streamer] =
+          await this.retrieveValidResolvedStreamers([streamerName]);
+      if (!streamer) return;
+
+      const cbs = event === 'add' ? this.addCallbacks : this.removeCallbacks;
+      cbs.forEach(cb => cb(streamer));
+    } catch (error) {
+      logger.error(
+          `Twitch live tracker: Emit '${event}' failed for '${streamerName}':`,
+          error);
+      throw error;
+    }
+  }
+
+  private processStatusUpdates(statuses: StreamStatus[]): void {
     for (const status of statuses) {
-      if (status.isLive) {
-        this.liveCallbacks.forEach(cb => cb(status));
-      } else {
-        this.offlineCallbacks.forEach(cb => cb(status));
-      }
+      const cbs = status.isLive ? this.liveCallbacks : this.offlineCallbacks;
+      cbs.forEach(cb => cb(status));
     }
   }
 
-  private isResolutionStale(
-      resolved: {resolvedAt: Date},
-      ): boolean {
-    const staleAfterMS = 86400000;
-    return Date.now() - resolved.resolvedAt.getTime() > staleAfterMS;
+  private isResolutionStale({resolvedAt}: {resolvedAt: Date}): boolean {
+    return Date.now() - resolvedAt.getTime() > STALE_MS;
   }
 
   private async retrieveValidResolvedStreamers(
@@ -277,10 +275,10 @@ export class TwitchStreamerLiveTrackerSI implements
 
     for (const name of names) {
       const cached = this.resolvedStreamers.get(name);
-      if (!cached || this.isResolutionStale(cached)) {
-        invalidNames.push(name);
-      } else {
+      if (cached && !this.isResolutionStale(cached)) {
         valid.push(cached);
+      } else {
+        invalidNames.push(name);
       }
     }
 
@@ -289,10 +287,9 @@ export class TwitchStreamerLiveTrackerSI implements
         const fresh: Streamer[] =
             await this.twitchAPI.resolveStreamer(invalidNames);
         const resolvedAt = new Date();
-        const newlyResolved: ResolvedStreamer[] = fresh.map(s => ({
-                                                              ...s,
-                                                              resolvedAt,
-                                                            }));
+        const newlyResolved: ResolvedStreamer[] =
+            fresh.map(s => ({...s, resolvedAt}));
+
         this.updateResolvedStreamerCache(fresh, resolvedAt);
         valid.push(...newlyResolved);
       } catch (error) {
@@ -305,42 +302,12 @@ export class TwitchStreamerLiveTrackerSI implements
     return valid;
   }
 
-  private async emitModifyingEvent(
-      event: 'add'|'remove',
-      streamer_name: string,
-      ): Promise<void> {
-    try {
-      let streamer: Streamer =
-          await this.retrieveValidResolvedStreamers([streamer_name])
-              .then(r => r[0]);
-      switch (event) {
-        case 'add': {
-          this.addCallbacks.forEach(cb => cb(streamer));
-          break;
-        }
-        case 'remove': {
-          this.removeCallbacks.forEach(cb => cb(streamer));
-        }
-      }
-    } catch (error) {
-      logger.error(
-          `Twitch live tracker: Error when attempting to emit '${
-              event}' event for '${streamer_name}':`,
-          error);
-      throw error;
-    }
-  }
-
   private updateResolvedStreamerCache(
-      streamer: Streamer|Streamer[],
-      resolvedAt: Date,
-      ): void {
+      streamer: Streamer|Streamer[], resolvedAt: Date): void {
     if (this.isResolutionStale({resolvedAt})) return;
-    if (streamer instanceof Array) {
-      streamer.forEach(
-          (s) => this.resolvedStreamers.set(s.name, {...s, resolvedAt}));
-    } else {
-      this.resolvedStreamers.set(streamer.name, {...streamer, resolvedAt});
-    }
+    const updateCache = (s: Streamer) =>
+        this.resolvedStreamers.set(s.name, {...s, resolvedAt});
+    Array.isArray(streamer) ? streamer.forEach(updateCache) :
+                              updateCache(streamer);
   }
 }
