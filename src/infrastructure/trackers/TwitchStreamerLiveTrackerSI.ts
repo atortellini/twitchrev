@@ -67,6 +67,7 @@ export class TwitchStreamerLiveTrackerSI implements
         let [streamer] =
             await this.retrieveValidResolvedStreamers([name_lowered]);
         this.trackedStreamers.add(name_lowered);
+        logger.info(`Twitch live tracker: Added '${name_lowered}'`);
         this.emitModifyingEvent('add', streamer);
       } catch (error) {
         logger.error(
@@ -281,7 +282,7 @@ export class TwitchStreamerLiveTrackerSI implements
     if (invalidNames.length) {
       try {
         const fresh: Streamer[] =
-            await this.twitchAPI.resolveStreamer(invalidNames);
+            await this.twitchAPI.resolveStreamers(invalidNames);
         const resolvedAt = new Date();
         const newlyResolved: ResolvedStreamer[] =
             fresh.map(s => ({...s, resolvedAt}));
