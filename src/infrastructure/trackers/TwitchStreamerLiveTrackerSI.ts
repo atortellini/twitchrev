@@ -53,35 +53,55 @@ export class TwitchStreamerLiveTrackerSI implements
    * WITH MULTIPLE ADDS WHERE SOME AWAIT FOR CHECKLIVESTATUS, SO FOR SIMPLICITY
    * JUST SLAPPED IT AT THE TOP
    */
+
+
+
   async addStreamer(name: string): Promise<void> {
     const name_lowered = name.toLowerCase();
-
     return await this.trackedStreamerMutex.withLock(async () => {
       if (this.trackedStreamers.has(name_lowered)) {
         logger.info(`Twitch live tracker: Already tracking '${name_lowered}'`);
         return;
       }
-
-      const fastCheck = await this.tryFastCheck(name_lowered);
-
-      this.trackedStreamers.add(name_lowered);
-      logger.info(`Twitch live tracker: Added ${name_lowered}`);
-      await this.safeEmit('add', name_lowered);
-
-      if (fastCheck?.length) {
-        this.updateResolvedStreamerCache(fastCheck[0].streamer, new Date());
-        this.processStatusUpdates(fastCheck);
+      try {
+        let [streamer] =
+            await this.retrieveValidResolvedStreamers([name_lowered]);
+        this.trackedStreamers.add(name_lowered);
+        this.emitModifyingEvent('add', streamer);
+      } catch (error) {
+        logger.error(
+            `Twitch live tracker: Failed to add '${name_lowered}':`, error);
+        throw error;
       }
     });
   }
 
+  /**
+   * INFO:
+   * DO TO ADDSTREAMER ENSURING THAT A STREAMER BE VALID PRIOR TO ADDING THEM
+   * TO THE SET, THE SET OF TRACKED STREAMERS SHOULD HAVE THE INVARIANT THAT
+   * THEY ARE VALID STREAMERS AND THE RESOLVEDSTREAMER SET SHOULD ONLY HAVE
+   * VALID STREAMERS. THIS MEANS THAT REMOVESTREAMER SHOULD BE ABLE TO
+   * IMMEDIATELY RETRIEVE FROM RESOLVEDSTREAMERS AND USE THAT OBJECT FOR THE
+   * CALLBACKS
+   *
+   */
   async removeStreamer(name: string): Promise<boolean> {
     const name_lowered = name.toLowerCase();
     return await this.trackedStreamerMutex.withLock(async () => {
       const removed = this.trackedStreamers.delete(name_lowered);
       if (removed) {
         logger.info(`Twitch live tracker: Removed ${name_lowered}`);
-        await this.safeEmit('remove', name_lowered);
+
+        const resolved = this.resolvedStreamers.get(name_lowered);
+        if (!resolved) {
+          logger.warn(`Twitch live tracker: Resolved info for '${
+              name_lowered}' missing from cache. Unable to invoke remove callbacks.`);
+        } else {
+          this.emitModifyingEvent('remove', resolved);
+        }
+      } else {
+        logger.info(`Twitch live tracker: Not tracking ${name_lowered}`);
       }
       return removed;
     });
@@ -227,33 +247,9 @@ export class TwitchStreamerLiveTrackerSI implements
     });
   }
 
-  private async tryFastCheck(name: string): Promise<StreamStatus[]|null> {
-    if (!this.pollingInterval) return null;
-    try {
-      return await this.twitchAPI.checkLiveStatus(name);
-    } catch (error) {
-      logger.error(
-          `Twitch live tracker: Fast-check error for '${name}':`, error);
-      return null;
-    }
-  }
-
-
-  private async safeEmit(event: TrackerEvent, streamerName: string):
-      Promise<void> {
-    try {
-      const [streamer] =
-          await this.retrieveValidResolvedStreamers([streamerName]);
-      if (!streamer) return;
-
-      const cbs = event === 'add' ? this.addCallbacks : this.removeCallbacks;
-      cbs.forEach(cb => cb(streamer));
-    } catch (error) {
-      logger.error(
-          `Twitch live tracker: Emit '${event}' failed for '${streamerName}':`,
-          error);
-      throw error;
-    }
+  private emitModifyingEvent(event: TrackerEvent, streamer: Streamer): void {
+    const cbs = event === 'add' ? this.addCallbacks : this.removeCallbacks;
+    cbs.forEach(cb => cb(streamer));
   }
 
   private processStatusUpdates(statuses: StreamStatus[]): void {
@@ -294,7 +290,9 @@ export class TwitchStreamerLiveTrackerSI implements
         valid.push(...newlyResolved);
       } catch (error) {
         logger.error(
-            'Twitch live tracker: Error while resolving streamers:', error);
+            `Twitch live tracker: Error while resolving streamers '${
+                invalidNames}':`,
+            error);
         throw error;
       }
     }
