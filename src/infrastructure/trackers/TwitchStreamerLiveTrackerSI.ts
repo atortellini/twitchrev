@@ -1,34 +1,41 @@
+import {EventEmitter} from 'node:events';
+
 import {IPlatformStreamerLiveTracker} from '../../domain/interfaces';
-import {Platform, Streamer, StreamStatus} from '../../domain/models';
+import {LiveStream, Platform, Streamer} from '../../domain/models';
 import {logger, Mutex} from '../../utils';
 
+type LiveStreamCb = (status: LiveStream) => void;
+type StreamerCb = (streamer: Streamer) => void;
+type StreamerId = string;
+type LiveStreamId = string;
 
-const STALE_MS = 24 * 60 * 60 * 1000;
-
-interface ResolvedStreamer extends Streamer {
-  resolvedAt: Date;
+/**
+ * Might want to include the LiveStream object
+ * in the state so I can include methods to retrieve
+ * the current livestreams and stuff for users of interafce. Would require
+ * modifying a couple methods
+ */
+interface StreamerState {
+  streamer: Streamer, current_stream_id?: LiveStreamId
 }
 
-type TrackerEvent = 'add'|'remove';
-type StatusCb = (status: StreamStatus) => void;
-type StreamerCb = (streamer: Streamer) => void;
+enum TrackerEvents {
+  start_tracking = 'start-tracking',
+  stop_tracking = 'stop-tracking',
+  live = 'live',
+  offline = 'offline'
+}
 
 export class TwitchStreamerLiveTrackerSI implements
     IPlatformStreamerLiveTracker {
   readonly platform = Platform.Twitch;
+  private event_emitter = new EventEmitter();
 
-  private trackedStreamerMutex = new Mutex('tw_livetrkr_streamer_mtx');
-  private trackedStreamers = new Set<string>();
-  private resolvedStreamers = new Map<string, ResolvedStreamer>();
+  private tracked_streamer_mtx = new Mutex('tw_livetrkr_streamer_mtx');
+  private tracked_streamers = new Map<StreamerId, StreamerState>();
 
-  private pollingInterval: NodeJS.Timeout|null = null;
+  private polling_interval: NodeJS.Timeout|null = null;
   private isPolling = false;
-
-  private liveCallbacks: StatusCb[] = [];
-  private offlineCallbacks: StatusCb[] = [];
-  private addCallbacks: StreamerCb[] = [];
-  private removeCallbacks: StreamerCb[] = [];
-
 
   constructor(
       private twitchAPI: TwitchApi, private pollingIntervalMs: number = 60000) {
@@ -36,102 +43,68 @@ export class TwitchStreamerLiveTrackerSI implements
         `Twitch live tracker: using setInterval; poll delays longer than the interval can skew results.`);
   }
 
-  /**
-   * TODO:
-   * AS OF NOW ADD STREAMER DEFAULTS TO ADDING TO LIST EVEN WITH ERRORS FROM
-   * FAST POLLING AND/OR EMITTING THE MODIFIYING EVENT. MIGHT CONSIDER CHANGING
-   * THE BEHAVIOR TO NOT ADD TO THE SET OF TRACKED STREAMERS IF THESE ERRORS
-   * OCCUR. ALSO POSSIBLY TO THROW AN ERROR FROM ADDSTREAMER SO CALLERS KNOW THE
-   * STREAMER WASN'T ADDED. POSSIBLY HAVE IT RETURN A PROMISE<BOOLEAN> LIKE
-   * REMOVE TO INDICIATE IF IT WAS SUCCESSFUL OR NOT
-   *
-   * ANOTHER THING. MIGHT WANT TO RECONSIDER AT SOME POINT THE POSITION OF
-   * ACQUIRING THE MUTEX AS THE THING THAT REALLY NEEDS TO BE ATOMIC IS ADDING
-   * TO THE SET AND EMITTING THE EVENTS TO EVERYONE, IMPLYING IT COULD BE
-   * ACQUIRED LATER IN THE FUNCTION, HOWEVER, SINCE ADDSTREAMER ALSO HAS A
-   * CHANCE TO IMMEDIATELY CHECH LIVE STATUS THERE COULD BE SOME CORNER CASES
-   * WITH MULTIPLE ADDS WHERE SOME AWAIT FOR CHECKLIVESTATUS, SO FOR SIMPLICITY
-   * JUST SLAPPED IT AT THE TOP
-   */
-
-
-
-  async addStreamer(name: string): Promise<void> {
-    const name_lowered = name.toLowerCase();
-    return await this.trackedStreamerMutex.withLock(async () => {
-      if (this.trackedStreamers.has(name_lowered)) {
-        logger.info(`Twitch live tracker: Already tracking '${name_lowered}'`);
-        return;
+  async startTracking(streamer: Streamer): Promise<void> {
+    return await this.tracked_streamer_mtx.withLock(async () => {
+      if (streamer.platform !== Platform.Twitch) {
+        throw new Error(
+            `Invalid platform '${streamer.platform}' for twitch live tracker`);
       }
-      try {
-        let [streamer] =
-            await this.retrieveValidResolvedStreamers([name_lowered]);
-        this.trackedStreamers.add(name_lowered);
-        logger.info(`Twitch live tracker: Added '${name_lowered}'`);
-        this.emitModifyingEvent('add', streamer);
-      } catch (error) {
-        logger.error(
-            `Twitch live tracker: Failed to add '${name_lowered}':`, error);
-        throw error;
+
+      if (this.tracked_streamers.has(streamer.id)) {
+        throw new Error(
+            `Already tracking '${streamer.name}' with twitch live tracker`);
+      }
+
+      this.tracked_streamers.set(streamer.id, {streamer});
+
+      logger.info(`Twitch live tracker: Started tracking '${
+          streamer.name}' (ID: ${streamer.id})`);
+
+      this.event_emitter.emit(TrackerEvents.start_tracking, streamer);
+
+      if (this.tracked_streamers.size === 1) {
+        this.startPolling();
       }
     });
   }
 
-  /**
-   * INFO:
-   * DO TO ADDSTREAMER ENSURING THAT A STREAMER BE VALID PRIOR TO ADDING THEM
-   * TO THE SET, THE SET OF TRACKED STREAMERS SHOULD HAVE THE INVARIANT THAT
-   * THEY ARE VALID STREAMERS AND THE RESOLVEDSTREAMER SET SHOULD ONLY HAVE
-   * VALID STREAMERS. THIS MEANS THAT REMOVESTREAMER SHOULD BE ABLE TO
-   * IMMEDIATELY RETRIEVE FROM RESOLVEDSTREAMERS AND USE THAT OBJECT FOR THE
-   * CALLBACKS
-   *
-   */
-  async removeStreamer(name: string): Promise<boolean> {
-    const name_lowered = name.toLowerCase();
-    return await this.trackedStreamerMutex.withLock(async () => {
-      const removed = this.trackedStreamers.delete(name_lowered);
-      if (removed) {
-        logger.info(`Twitch live tracker: Removed ${name_lowered}`);
+  async stopTracking(streamer: Streamer): Promise<void> {
+    return await this.tracked_streamer_mtx.withLock(async () => {
+      if (this.tracked_streamers.delete(streamer.id)) {
+        logger.info(`Twitch live tracker: Stopped tracking '${streamer.name}'`);
+        this.event_emitter.emit(TrackerEvents.stop_tracking, streamer);
 
-        const resolved = this.resolvedStreamers.get(name_lowered);
-        if (!resolved) {
-          logger.warn(`Twitch live tracker: Resolved info for '${
-              name_lowered}' missing from cache. Unable to invoke remove callbacks.`);
-        } else {
-          this.emitModifyingEvent('remove', resolved);
+        if (this.tracked_streamers.size === 0) {
+          this.stopPolling();
         }
       } else {
-        logger.info(`Twitch live tracker: Not tracking ${name_lowered}`);
+        logger.info(`Twitch live tracker: Was not tracking '${streamer.name}'`);
       }
-      return removed;
     });
   }
 
   async getTrackedStreamers(): Promise<Streamer[]> {
-    return await this.trackedStreamerMutex.withLock(async () => {
-      const names = Array.from(this.trackedStreamers);
-      return this.retrieveValidResolvedStreamers(names);
-    });
+    return await this.tracked_streamer_mtx.withLock(
+        async () => [...this.tracked_streamers.values()].map(
+            ss => ss.streamer));
   }
 
-  async isTracking(name: string): Promise<boolean> {
-    return await this.trackedStreamerMutex.withLock(
-        async () =>
-            Promise.resolve(this.trackedStreamers.has(name.toLowerCase())));
+  async isTracking(streamer: Streamer): Promise<boolean> {
+    return await this.tracked_streamer_mtx.withLock(
+        async () => this.tracked_streamers.has(streamer.id));
   }
 
-  onLive(callback: StatusCb): void {
-    this.liveCallbacks.push(callback);
+  onLive(callback: LiveStreamCb): void {
+    this.event_emitter.on(TrackerEvents.live, callback);
   }
-  onOffline(callback: StatusCb): void {
-    this.offlineCallbacks.push(callback);
+  onOffline(callback: StreamerCb): void {
+    this.event_emitter.on(TrackerEvents.offline, callback);
   }
-  onAdded(callback: StreamerCb): void {
-    this.addCallbacks.push(callback);
+  onStartTracking(callback: StreamerCb): void {
+    this.event_emitter.on(TrackerEvents.start_tracking, callback);
   }
-  onRemoved(callback: StreamerCb): void {
-    this.removeCallbacks.push(callback);
+  onStopTracking(callback: StreamerCb): void {
+    this.event_emitter.on(TrackerEvents.stop_tracking, callback);
   }
 
   /**
@@ -151,8 +124,8 @@ export class TwitchStreamerLiveTrackerSI implements
    *     However, future updates that would have occurred are now held up by
    *     the oldest, incomplete poll.
    */
-  async start(): Promise<void> {
-    if (this.pollingInterval) {
+  private startPolling(): void {
+    if (this.polling_interval) {
       logger.warn('Twitch live tracker: Already running...');
       return;
     }
@@ -164,30 +137,20 @@ export class TwitchStreamerLiveTrackerSI implements
     logger.info('Twitch live tracker: Running');
   }
 
-  async stop(): Promise<void> {
-    if (!this.pollingInterval) {
+  private stopPolling(): void {
+    if (!this.polling_interval) {
       logger.warn('Twitch live tracker: Already stopped...');
       return;
     }
     logger.info('Twitch live tracker: Stopping...');
 
-    clearInterval(this.pollingInterval);
-    this.pollingInterval = null;
-
-    if (this.isPolling) {
-      logger.info(
-          'Twitch live tracker: Waiting for outbound polls to finish before stopping...')
-      while (this.isPolling) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-
+    clearInterval(this.polling_interval);
+    this.polling_interval = null;
     logger.info('Twitch live tracker: Stopped');
   }
 
-
   private schedulePoll(): void {
-    this.pollingInterval = setInterval(() => {
+    this.polling_interval = setInterval(() => {
       if (!this.isPolling)
         this.runPoll();
       else
@@ -207,106 +170,52 @@ export class TwitchStreamerLiveTrackerSI implements
     }
   }
 
-  /**
-   * INFO:
-   * IN MY MIND POLL REQUIRES TRACKEDSTREAMERMUTEX SINCE, WHEN IT AWAITS
-   * FOR AN API CALL A REMOVE STREAMER METHOD COULD BE COMPLETELY INVOKED,
-   * ALONG WITH ALL REMOVE EVENT CALLBACKS BUT THEN A LIVE RESPONSE WILL STILL
-   * BE RECEIVED FOR THAT STREAMER EVENTUALLY. WHICH I GUESS ISNT THE WORst
-   * THING SINCE IT WOULD ONLY BE ONE POLL SO I THINK I WILL REMOVE THE MUTEX
-   * FOR NOW.
-   * ANOTHER REASON FOR A MUTEX BETWEEN ADD/POLL IS THAT, DEPENDING ON HOW THEIR
-   * INDEPENDENT POLLING INTERLEAVES, IT COULD BE THE CASE THAT ADD AWAITS ON
-   * EMITTING ITS ADD EVENT AFTER JUST RECEIVING THAT STREAMER A IS OFFLINE.
-   * HOWEVER, AT THAT MOMENT POLL'S QUERY TO THE TWITCH API RETURNS SAYING
-   * STREAMER A IS OFFLINE. SINCE THEIR EXECUTION HAS BEEN INTERLEAVED, IT'S
-   * INDETERMINATE AT THAT MOMENT WHAT THE STATE OF STREAMER A ACTUALLY IS UNTIL
-   * A LATER QUERY IS MADE THAT IS NOT INTERLEAVED. THIS CREATES AN ISSUE FOR
-   * THOSE LISTENING TO THE OFFLINE/ONLINE EVENTS. DEPENDING ON WHICH THE EVENT
-   * LOOP DECIDES TO CONTINUE EXECUTING FIRST, THE ONLINE OR OFFLINE COULD BE
-   * EMITTED FIRST, FOLLOWED BY THE OTHER. HOWEVER, WITH HAVING A MUTEX ITS
-   * ENSURED THAT THE MOST RECENT EVENT EMIT WILL REFLECT THE LATEST
-   * UNDERSTANDING OF THE STREAMER'S ONLINE STATUS. FOR THAT, I WILL BE KEEPING
-   * THE MUTEX
-   */
   private async poll() {
-    return await this.trackedStreamerMutex.withLock(async () => {
-      if (this.trackedStreamers.size === 0) {
+    return await this.tracked_streamer_mtx.withLock(async () => {
+      if (this.tracked_streamers.size === 0) {
         return
       }
-      const streamerNames = Array.from(this.trackedStreamers);
+      const streamerIds = [...this.tracked_streamers.keys()];
       try {
-        const statuses: StreamStatus[] =
-            await this.twitchAPI.checkLiveStatus(streamerNames);
-        const streamers = statuses.length === 1 ? statuses[0].streamer :
-                                                  statuses.map(s => s.streamer);
-        this.updateResolvedStreamerCache(streamers, new Date());
-        this.processStatusUpdates(statuses);
+        const streams: LiveStream[] =
+            await this.twitchAPI.getStreams(streamerIds);
+        this.processStatusUpdates(streams);
       } catch (error) {
         logger.error('Twitch live tracker: Error polling Twitch:', error);
       }
     });
   }
 
-  private emitModifyingEvent(event: TrackerEvent, streamer: Streamer): void {
-    const cbs = event === 'add' ? this.addCallbacks : this.removeCallbacks;
-    cbs.forEach(cb => cb(streamer));
-  }
+  private processStatusUpdates(livestreams: LiveStream[]): void {
+    const current_livestreams = new Map<StreamerId, LiveStream>();
 
-  private processStatusUpdates(statuses: StreamStatus[]): void {
-    for (const status of statuses) {
-      const cbs = status.isLive ? this.liveCallbacks : this.offlineCallbacks;
-      cbs.forEach(cb => cb(status));
+    for (const stream of livestreams) {
+      current_livestreams.set(stream.streamer.id, stream);
     }
-  }
 
-  private isResolutionStale({resolvedAt}: {resolvedAt: Date}): boolean {
-    return Date.now() - resolvedAt.getTime() > STALE_MS;
-  }
+    for (const [streamer_id, streamer_state] of this.tracked_streamers) {
+      const current_stream = current_livestreams.get(streamer_id);
+      const previous_stream_id = streamer_state.current_stream_id;
 
-  private async retrieveValidResolvedStreamers(
-      names: string[],
-      ): Promise<ResolvedStreamer[]> {
-    const valid: ResolvedStreamer[] = [];
-    const invalidNames: string[] = [];
+      const wasLive = previous_stream_id !== undefined;
+      const isLive = current_stream !== undefined;
 
-    for (const name of names) {
-      const cached = this.resolvedStreamers.get(name);
-      if (cached && !this.isResolutionStale(cached)) {
-        valid.push(cached);
-      } else {
-        invalidNames.push(name);
+      if (wasLive && !isLive) {
+        streamer_state.current_stream_id = undefined;
+        this.event_emitter.emit(TrackerEvents.offline, streamer_state.streamer);
+        logger.info(
+            `Twitch live tracker: ${streamer_state.streamer.name} is offline`);
+      } else if (isLive) {
+        const isNewStream =
+            !wasLive || current_stream.id !== previous_stream_id;
+
+        if (isNewStream) {
+          streamer_state.current_stream_id = current_stream.id;
+          this.event_emitter.emit(TrackerEvents.live, current_stream);
+          logger.info(
+              `Twitch live tracker: ${streamer_state.streamer.name} is live`);
+        }
       }
     }
-
-    if (invalidNames.length) {
-      try {
-        const fresh: Streamer[] =
-            await this.twitchAPI.resolveStreamers(invalidNames);
-        const resolvedAt = new Date();
-        const newlyResolved: ResolvedStreamer[] =
-            fresh.map(s => ({...s, resolvedAt}));
-
-        this.updateResolvedStreamerCache(fresh, resolvedAt);
-        valid.push(...newlyResolved);
-      } catch (error) {
-        logger.error(
-            `Twitch live tracker: Error while resolving streamers '${
-                invalidNames}':`,
-            error);
-        throw error;
-      }
-    }
-
-    return valid;
-  }
-
-  private updateResolvedStreamerCache(
-      streamer: Streamer|Streamer[], resolvedAt: Date): void {
-    if (this.isResolutionStale({resolvedAt})) return;
-    const updateCache = (s: Streamer) =>
-        this.resolvedStreamers.set(s.name, {...s, resolvedAt});
-    Array.isArray(streamer) ? streamer.forEach(updateCache) :
-                              updateCache(streamer);
   }
 }
