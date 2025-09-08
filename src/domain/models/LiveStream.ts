@@ -1,23 +1,39 @@
 import {HelixStream} from '@twurple/api';
 
-import {Streamer, StreamerEntity} from './Streamer';
+import {Platform} from './Platform';
 
 export interface LiveStream {
-  streamer: Streamer;
-  id: string;
-  start_date: Date;
-  title: string;
-  game_id: string;
-  game_name: string;
-  viewers?: Number;
+  readonly platform: Platform;
+  readonly user_id: string;
+  readonly user_name: string;
+  readonly user_displayname: string;
+  readonly id: string;
+  readonly start_date: Date;
+  readonly title: string;
+  readonly viewers: number;
 }
 
-export namespace LiveStreamEntity {
-  export function fromHelixStream(hs: HelixStream): LiveStream {
+export interface TwitchLiveStream extends LiveStream {
+  readonly platform: Platform.Twitch;
+  readonly game_id: string;
+  readonly game_name: string;
+  readonly type: 'live'|'vodcast'|'';
+}
+
+export namespace TwitchLiveStreamEntity {
+  export function fromHelixStream(hs: HelixStream): TwitchLiveStream {
     return {
-      streamer: StreamerEntity.fromHelixStream(hs), id: hs.id,
-          start_date: hs.startDate, title: hs.title, game_id: hs.gameId,
-          game_name: hs.gameName, viewers: hs.viewers
-    }
+      platform: Platform.Twitch,
+      user_id: hs.userId,
+      user_name: hs.userName,
+      user_displayname: hs.userDisplayName,
+      id: hs.id,
+      start_date: hs.startDate,
+      title: hs.title,
+      viewers: hs.viewers,
+      game_id: hs.gameId,
+      game_name: hs.gameName,
+      type: hs.type
+    };
   }
 }
