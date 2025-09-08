@@ -1,9 +1,9 @@
 import {IPlatformStreamerLiveTracker, IStreamersLiveStatusManager, IStreamersLiveStatusProvider, ITrackedStreamerRepository} from '../../domain/interfaces';
-import {Platform, Streamer, StreamStatus} from '../../domain/models';
+import {LiveStream, Platform, Streamer} from '../../domain/models';
 import {logger} from '../../utils';
 
 
-type StatusCb = (status: StreamStatus) => void;
+type LiveStreamCb = (status: LiveStream) => void;
 type StreamerCb = (streamer: Streamer) => void;
 
 export class StreamersLiveStatusTrackerLight implements
@@ -12,23 +12,20 @@ export class StreamersLiveStatusTrackerLight implements
       private platformTrackers: Map<Platform, IPlatformStreamerLiveTracker>,
   ) {}
 
-  /**
-   * Maybe return boolean for successful result
-   */
-  async addStreamer(name: string, platform: Platform): Promise<void> {
-    return await this.withTracker(platform, pt => pt.addStreamer(name), {
-      errorMsg: (`Streamers live tracker: Error while adding ${name} for '${
-          platform}':`)
-    });
+
+  async startTracking(streamer: Streamer): Promise<void> {
+    return await this.withTracker(
+        streamer.platform, pt => pt.startTracking(streamer), {
+          errorMsg: (`Streamers live tracker: Error while adding '${
+              streamer.name}' for '${streamer.platform}':`)
+        });
   }
 
-  async removeStreamer(name: string, platform: Platform):
-      Promise<boolean>{return await this.withTracker(
-          platform, pt => pt.removeStreamer(name), {
-            onMissing: false,
-            onError: false,
+  async stopTracking(streamer: Streamer):
+      Promise<void>{return await this.withTracker(
+          streamer.platform, pt => pt.stopTracking(streamer), {
             errorMsg: `Streamers live tracker: Error while removing '${
-                name} for '${platform}':`
+                streamer.name}' for '${streamer.platform}':`
           })
 
       }
@@ -57,13 +54,14 @@ export class StreamersLiveStatusTrackerLight implements
     });
   }
 
-  async isStreamerTracked(name: string, platform: Platform): Promise<boolean> {
-    return await this.withTracker(platform, pt => pt.isTracking(name), {
-      onMissing: false,
-      onError: false,
-      errorMsg: `Streamers live tracker: Error while checking if '${
-          name}' is tracked on '${platform}':`
-    });
+  async isStreamerTracked(streamer: Streamer): Promise<boolean> {
+    return await this.withTracker(
+        streamer.platform, pt => pt.isTracking(streamer), {
+          onMissing: false,
+          onError: false,
+          errorMsg: `Streamers live tracker: Error while checking if '${
+              streamer.name}' is tracked on '${streamer.platform}':`
+        });
   }
 
 
@@ -91,18 +89,16 @@ export class StreamersLiveStatusTrackerLight implements
     }
   }
 
-  onStreamerWentLive(callback: StatusCb): void {
+  onStreamerWentLive(callback: LiveStreamCb): void {
     this.platformTrackers.values().forEach(pt => pt.onLive(callback));
   }
-
-  onStreamerWentOffline(callback: StatusCb): void {
+  onStreamerWentOffline(callback: StreamerCb): void {
     this.platformTrackers.values().forEach(pt => pt.onOffline(callback));
   }
-  onStreamerAdded(callback: StreamerCb): void {
-    this.platformTrackers.values().forEach(pt => pt.onAdded(callback));
+  onStreamerStartTracking(callback: StreamerCb): void {
+    this.platformTrackers.values().forEach(pt => pt.onStartTracking(callback));
   }
-
-  onStreamerRemoved(callback: StreamerCb): void {
-    this.platformTrackers.values().forEach(pt => pt.onRemoved(callback));
+  onStreamerStopTracking(callback: StreamerCb): void {
+    this.platformTrackers.values().forEach(pt => pt.onStopTracking(callback));
   }
 }
