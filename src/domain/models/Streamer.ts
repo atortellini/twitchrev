@@ -1,4 +1,4 @@
-import {HelixStream, HelixUser} from '@twurple/api';
+import {HelixUser} from '@twurple/api';
 
 import {Platform} from './Platform';
 
@@ -26,6 +26,11 @@ export namespace StreamerEntity {
   }
   export function toString(t: Streamer): string {
     return `${t.display_name} (${t.platform})`;
+  }
+
+  export function isTwitchStreamer(streamer: Streamer):
+      streamer is TwitchStreamer {
+    return (streamer.platform === Platform.Twitch);
   }
 
 }

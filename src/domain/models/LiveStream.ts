@@ -6,7 +6,7 @@ export interface LiveStream {
   readonly platform: Platform;
   readonly user_id: string;
   readonly user_name: string;
-  readonly user_displayname: string;
+  readonly user_display_name: string;
   readonly id: string;
   readonly start_date: Date;
   readonly title: string;
@@ -20,13 +20,20 @@ export interface TwitchLiveStream extends LiveStream {
   readonly type: 'live'|'vodcast'|'';
 }
 
+export namespace LiveStreamEntity {
+  export function isTwitchLiveStream(stream: LiveStream):
+      stream is TwitchLiveStream {
+    return (stream.platform === Platform.Twitch);
+  }
+}
+
 export namespace TwitchLiveStreamEntity {
   export function fromHelixStream(hs: HelixStream): TwitchLiveStream {
     return {
       platform: Platform.Twitch,
       user_id: hs.userId,
       user_name: hs.userName,
-      user_displayname: hs.userDisplayName,
+      user_display_name: hs.userDisplayName,
       id: hs.id,
       start_date: hs.startDate,
       title: hs.title,
