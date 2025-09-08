@@ -1,3 +1,5 @@
+import {HelixStream, HelixUser} from '@twurple/api';
+
 import {Platform} from './Platform';
 
 export interface Streamer {
@@ -8,26 +10,27 @@ export interface Streamer {
   creation_date?: Date;
 }
 
-export class StreamerEntity implements Streamer {
-  constructor(
-      public readonly platform: Platform, public readonly display_name: string,
-      public readonly name: string, public readonly id: string,
-      public readonly creation_date?: Date) {
-    if (!platform || !display_name || !name || !id) {
-      throw new Error(
-          'Mandatory streamer fields must be initialized with values');
+export namespace StreamerEntity {
+  export function equals(t: Streamer, o: Streamer): boolean {
+    return t.id === o.id && t.platform === o.platform
+  }
+  export function getKey(t: Streamer): string {
+    return `${t.name}-${t.platform}`;
+  }
+  export function toString(t: Streamer): string {
+    return `${t.display_name} (${t.platform})`;
+  }
+
+  export function fromHelixUser(hu: HelixUser): Streamer {
+    return {
+      platform: Platform.Twitch, display_name: hu.displayName, name: hu.name,
+          id: hu.id, creation_date: hu.creationDate
     }
   }
-
-  equals(other: Streamer): boolean {
-    return this.id === other.id && this.platform === other.platform;
-  }
-
-  getKey(): string {
-    return `${this.name}-${this.platform}`;
-  }
-
-  toString(): string {
-    return `${this.display_name} (${this.platform})`;
+  export function fromHelixStream(hs: HelixStream): Streamer {
+    return {
+      platform: Platform.Twitch, display_name: hs.userDisplayName,
+          name: hs.userName, id: hs.userId
+    }
   }
 }
