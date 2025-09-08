@@ -1,6 +1,6 @@
 import {EventEmitter} from 'node:events';
 
-import {IPlatformAPIStreams, IPlatformStreamerLiveTracker} from '../../domain/interfaces';
+import {IPlatformStreamerLiveTracker, IPlatformStreamsAPI} from '../../domain/interfaces';
 import {LiveStream, Platform, Streamer} from '../../domain/models';
 import {logger, Mutex} from '../../utils';
 
@@ -37,7 +37,7 @@ export class PollingStreamerLiveTrackerSI implements
   private isPolling = false;
 
   constructor(
-      readonly platform: Platform, private platformAPI: IPlatformAPIStreams,
+      readonly platform: Platform, private platformAPI: IPlatformStreamsAPI,
       private pollingIntervalMs: number = 60000) {
     logger.warn(`${
         this.platform} live tracker: using setInterval; poll delays longer than the interval can skew results.`);
@@ -197,7 +197,7 @@ export class PollingStreamerLiveTrackerSI implements
     const current_livestreams = new Map<StreamerId, LiveStream>();
 
     for (const stream of livestreams) {
-      current_livestreams.set(stream.streamer.id, stream);
+      current_livestreams.set(stream.user_id, stream);
     }
 
     for (const [streamer_id, streamer_state] of this.tracked_streamers) {
