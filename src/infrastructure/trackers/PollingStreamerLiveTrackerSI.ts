@@ -1,6 +1,6 @@
 import {EventEmitter} from 'node:events';
 
-import {IPlatformStreamerLiveTracker} from '../../domain/interfaces';
+import {IPlatformStreamerLiveTracker, IPlatformStreamsAPI} from '../../domain/interfaces';
 import {LiveStream, Platform, Streamer} from '../../domain/models';
 import {logger, Mutex} from '../../utils';
 
@@ -26,38 +26,39 @@ enum TrackerEvents {
   offline = 'offline'
 }
 
-export class TwitchStreamerLiveTrackerSI implements
+export class PollingStreamerLiveTrackerSI implements
     IPlatformStreamerLiveTracker {
-  readonly platform = Platform.Twitch;
   private event_emitter = new EventEmitter();
 
-  private tracked_streamer_mtx = new Mutex('tw_livetrkr_streamer_mtx');
+  private tracked_streamer_mtx;
   private tracked_streamers = new Map<StreamerId, StreamerState>();
 
   private polling_interval: NodeJS.Timeout|null = null;
   private isPolling = false;
 
   constructor(
-      private twitchAPI: TwitchApi, private pollingIntervalMs: number = 60000) {
-    logger.warn(
-        `Twitch live tracker: using setInterval; poll delays longer than the interval can skew results.`);
+      readonly platform: Platform, private platformAPI: IPlatformStreamsAPI,
+      private pollingIntervalMs: number = 60000) {
+    logger.warn(`${
+        this.platform} live tracker: using setInterval; poll delays longer than the interval can skew results.`);
+    this.tracked_streamer_mtx = new Mutex(`${this.platform}-poll-livetrkr`);
   }
 
   async startTracking(streamer: Streamer): Promise<void> {
     return await this.tracked_streamer_mtx.withLock(async () => {
-      if (streamer.platform !== Platform.Twitch) {
-        throw new Error(
-            `Invalid platform '${streamer.platform}' for twitch live tracker`);
+      if (streamer.platform !== this.platform) {
+        throw new Error(`Invalid platform '${streamer.platform}' for ${
+            this.platform} live tracker`);
       }
 
       if (this.tracked_streamers.has(streamer.id)) {
-        throw new Error(
-            `Already tracking '${streamer.name}' with twitch live tracker`);
+        throw new Error(`Already tracking '${streamer.name}' with ${
+            this.platform} live tracker`);
       }
 
       this.tracked_streamers.set(streamer.id, {streamer});
 
-      logger.info(`Twitch live tracker: Started tracking '${
+      logger.info(`${this.platform} live tracker: Started tracking '${
           streamer.name}' (ID: ${streamer.id})`);
 
       this.event_emitter.emit(TrackerEvents.start_tracking, streamer);
@@ -71,14 +72,16 @@ export class TwitchStreamerLiveTrackerSI implements
   async stopTracking(streamer: Streamer): Promise<void> {
     return await this.tracked_streamer_mtx.withLock(async () => {
       if (this.tracked_streamers.delete(streamer.id)) {
-        logger.info(`Twitch live tracker: Stopped tracking '${streamer.name}'`);
+        logger.info(`${this.platform} live tracker: Stopped tracking '${
+            streamer.name}'`);
         this.event_emitter.emit(TrackerEvents.stop_tracking, streamer);
 
         if (this.tracked_streamers.size === 0) {
           this.stopPolling();
         }
       } else {
-        logger.info(`Twitch live tracker: Was not tracking '${streamer.name}'`);
+        logger.info(`${this.platform} live tracker: Was not tracking '${
+            streamer.name}'`);
       }
     });
   }
@@ -126,27 +129,27 @@ export class TwitchStreamerLiveTrackerSI implements
    */
   private startPolling(): void {
     if (this.polling_interval) {
-      logger.warn('Twitch live tracker: Already running...');
+      logger.warn(`${this.platform} live tracker: Already running...`);
       return;
     }
-    logger.info('Twitch live tracker: Starting...');
+    logger.info(`${this.platform} live tracker: Starting...`);
 
     this.schedulePoll();
     this.runPoll();
 
-    logger.info('Twitch live tracker: Running');
+    logger.info(`${this.platform} live tracker: Running`);
   }
 
   private stopPolling(): void {
     if (!this.polling_interval) {
-      logger.warn('Twitch live tracker: Already stopped...');
+      logger.warn(`${this.platform} live tracker: Already stopped...`);
       return;
     }
-    logger.info('Twitch live tracker: Stopping...');
+    logger.info(`${this.platform} live tracker: Stopping...`);
 
     clearInterval(this.polling_interval);
     this.polling_interval = null;
-    logger.info('Twitch live tracker: Stopped');
+    logger.info(`${this.platform} live tracker: Stopped`);
   }
 
   private schedulePoll(): void {
@@ -154,7 +157,8 @@ export class TwitchStreamerLiveTrackerSI implements
       if (!this.isPolling)
         this.runPoll();
       else
-        logger.warn(`Twitch live tracker: Previous poll has not finished. 
+        logger.warn(
+            `${this.platform} live tracker: Previous poll has not finished. 
         Consider adjusting poll interval.`);
     }, this.pollingIntervalMs);
   }
@@ -164,7 +168,8 @@ export class TwitchStreamerLiveTrackerSI implements
     try {
       await this.poll();
     } catch (error) {
-      logger.error('Twitch live tracker: Error during polling:', error);
+      logger.error(
+          `${this.platform} live tracker: Error during polling:`, error);
     } finally {
       this.isPolling = false;
     }
@@ -178,10 +183,12 @@ export class TwitchStreamerLiveTrackerSI implements
       const streamerIds = [...this.tracked_streamers.keys()];
       try {
         const streams: LiveStream[] =
-            await this.twitchAPI.getStreams(streamerIds);
+            await this.platformAPI.getStreams(streamerIds);
         this.processStatusUpdates(streams);
       } catch (error) {
-        logger.error('Twitch live tracker: Error polling Twitch:', error);
+        logger.error(
+            `${this.platform} live tracker: Error polling ${this.platform}:`,
+            error);
       }
     });
   }
@@ -190,7 +197,7 @@ export class TwitchStreamerLiveTrackerSI implements
     const current_livestreams = new Map<StreamerId, LiveStream>();
 
     for (const stream of livestreams) {
-      current_livestreams.set(stream.streamer.id, stream);
+      current_livestreams.set(stream.user_id, stream);
     }
 
     for (const [streamer_id, streamer_state] of this.tracked_streamers) {
@@ -203,8 +210,8 @@ export class TwitchStreamerLiveTrackerSI implements
       if (wasLive && !isLive) {
         streamer_state.current_stream_id = undefined;
         this.event_emitter.emit(TrackerEvents.offline, streamer_state.streamer);
-        logger.info(
-            `Twitch live tracker: ${streamer_state.streamer.name} is offline`);
+        logger.info(`${this.platform} live tracker: ${
+            streamer_state.streamer.name} is offline`);
       } else if (isLive) {
         const isNewStream =
             !wasLive || current_stream.id !== previous_stream_id;
@@ -212,8 +219,8 @@ export class TwitchStreamerLiveTrackerSI implements
         if (isNewStream) {
           streamer_state.current_stream_id = current_stream.id;
           this.event_emitter.emit(TrackerEvents.live, current_stream);
-          logger.info(
-              `Twitch live tracker: ${streamer_state.streamer.name} is live`);
+          logger.info(`${this.platform} live tracker: ${
+              streamer_state.streamer.name} is live`);
         }
       }
     }

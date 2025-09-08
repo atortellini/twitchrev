@@ -1,33 +1,51 @@
+import {HelixUser} from '@twurple/api';
+
 import {Platform} from './Platform';
 
 export interface Streamer {
-  platform: Platform;
-  display_name: string;
-  name: string;
-  id: string;
-  creation_date?: Date;
+  readonly platform: Platform;
+  readonly display_name: string;
+  readonly name: string;
+  readonly id: string;
 }
 
-export class StreamerEntity implements Streamer {
-  constructor(
-      public readonly platform: Platform, public readonly display_name: string,
-      public readonly name: string, public readonly id: string,
-      public readonly creation_date?: Date) {
-    if (!platform || !display_name || !name || !id) {
-      throw new Error(
-          'Mandatory streamer fields must be initialized with values');
-    }
+export interface TwitchStreamer extends Streamer {
+  readonly platform: Platform.Twitch;
+  readonly creation_date: Date;
+  readonly pfp_url: string;
+  readonly broadcaster_type: 'partner'|'affiliate'|'';
+  readonly type: ''|'staff'|'admin'|'global_mod';
+}
+
+export namespace StreamerEntity {
+  export function equals(t: Streamer, o: Streamer): boolean {
+    return t.id === o.id && t.platform === o.platform
+  }
+  export function getKey(t: Streamer): string {
+    return `${t.name}-${t.platform}`;
+  }
+  export function toString(t: Streamer): string {
+    return `${t.display_name} (${t.platform})`;
   }
 
-  equals(other: Streamer): boolean {
-    return this.id === other.id && this.platform === other.platform;
+  export function isTwitchStreamer(streamer: Streamer):
+      streamer is TwitchStreamer {
+    return (streamer.platform === Platform.Twitch);
   }
 
-  getKey(): string {
-    return `${this.name}-${this.platform}`;
-  }
+}
 
-  toString(): string {
-    return `${this.display_name} (${this.platform})`;
+export namespace TwitchStreamerEntity {
+  export function fromHelixUser(hu: HelixUser): TwitchStreamer {
+    return {
+      platform: Platform.Twitch,
+      display_name: hu.displayName,
+      name: hu.name,
+      id: hu.id,
+      creation_date: hu.creationDate,
+      pfp_url: hu.profilePictureUrl,
+      broadcaster_type: hu.broadcasterType,
+      type: hu.type
+    };
   }
 }
