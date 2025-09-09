@@ -1,9 +1,9 @@
-import {Platform, Streamer} from '../../models';
+import {Platform, User} from '../../models';
 
 export interface IStreamersLiveStatusManager {
-  startTracking(streamer: Streamer): Promise<void>;
-  stopTracking(streamer: Streamer): Promise<void>;
-  getTrackedStreamers(): Promise<Streamer[]>;
-  getStreamersByPlatform(platform: Platform): Promise<Streamer[]>;
-  isStreamerTracked(streamer: Streamer): Promise<boolean>;
+  startTracking(streamer: User): Promise<void>;
+  stopTracking(streamer: User): Promise<void>;
+  getTrackedStreamers(): Promise<User[]>;
+  getStreamersByPlatform(platform: Platform): Promise<User[]>;
+  isStreamerTracked(streamer: User): Promise<boolean>;
 }

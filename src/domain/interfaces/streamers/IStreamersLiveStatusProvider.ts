@@ -1,8 +1,8 @@
-import {LiveStream, Streamer} from '../../models';
+import {LiveStream, User} from '../../models';
 
 export interface IStreamersLiveStatusProvider {
   onStreamerWentLive(callback: (streamer: LiveStream) => void): void;
-  onStreamerWentOffline(callback: (streamer: Streamer) => void): void;
-  onStreamerStartTracking(callback: (streamer: Streamer) => void): void;
-  onStreamerStopTracking(callback: (streamer: Streamer) => void): void;
+  onStreamerWentOffline(callback: (streamer: User) => void): void;
+  onStreamerStartTracking(callback: (streamer: User) => void): void;
+  onStreamerStopTracking(callback: (streamer: User) => void): void;
 }

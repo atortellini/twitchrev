@@ -1,10 +1,10 @@
 import {IPlatformStreamerLiveTracker, IStreamersLiveStatusManager, IStreamersLiveStatusProvider, ITrackedStreamerRepository} from '../../domain/interfaces';
-import {LiveStream, Platform, Streamer} from '../../domain/models';
+import {LiveStream, Platform, User} from '../../domain/models';
 import {logger} from '../../utils';
 
 
 type LiveStreamCb = (status: LiveStream) => void;
-type StreamerCb = (streamer: Streamer) => void;
+type StreamerCb = (streamer: User) => void;
 
 export class StreamersLiveStatusTrackerLight implements
     IStreamersLiveStatusManager, IStreamersLiveStatusProvider {
@@ -13,7 +13,7 @@ export class StreamersLiveStatusTrackerLight implements
   ) {}
 
 
-  async startTracking(streamer: Streamer): Promise<void> {
+  async startTracking(streamer: User): Promise<void> {
     return await this.withTracker(
         streamer.platform, pt => pt.startTracking(streamer), {
           errorMsg: (`Streamers live tracker: Error while adding '${
@@ -21,7 +21,7 @@ export class StreamersLiveStatusTrackerLight implements
         });
   }
 
-  async stopTracking(streamer: Streamer):
+  async stopTracking(streamer: User):
       Promise<void>{return await this.withTracker(
           streamer.platform, pt => pt.stopTracking(streamer), {
             errorMsg: `Streamers live tracker: Error while removing '${
@@ -30,7 +30,7 @@ export class StreamersLiveStatusTrackerLight implements
 
       }
 
-  async getTrackedStreamers(): Promise<Streamer[]> {
+  async getTrackedStreamers(): Promise<User[]> {
     const settled =
         await Promise.allSettled([...this.platformTrackers.values()].map(
             pt => pt.getTrackedStreamers()));
@@ -44,7 +44,7 @@ export class StreamersLiveStatusTrackerLight implements
     })
   }
 
-  async getStreamersByPlatform(platform: Platform): Promise<Streamer[]> {
+  async getStreamersByPlatform(platform: Platform): Promise<User[]> {
     return await this.withTracker(platform, pt => pt.getTrackedStreamers(), {
       onMissing: [],
       onError: [],
@@ -54,7 +54,7 @@ export class StreamersLiveStatusTrackerLight implements
     });
   }
 
-  async isStreamerTracked(streamer: Streamer): Promise<boolean> {
+  async isStreamerTracked(streamer: User): Promise<boolean> {
     return await this.withTracker(
         streamer.platform, pt => pt.isTracking(streamer), {
           onMissing: false,

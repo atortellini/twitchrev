@@ -1,7 +1,7 @@
-import {Platform, Streamer} from '../../models';
+import {Platform, User} from '../../models';
 
 export interface IPlatformUsersAPI {
   readonly platform: Platform;
-  getUser(name: string): Promise<Streamer|null>;
-  getUsers(name: string[]): Promise<Streamer[]>;
+  getUser(name: string): Promise<User|null>;
+  getUsers(name: string[]): Promise<User[]>;
 }

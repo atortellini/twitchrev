@@ -1,30 +1,30 @@
 import {ApiClient} from '@twurple/api';
 
 import {IPlatformUsersAPI} from '../../domain/interfaces';
-import {Platform, TwitchStreamer, TwitchStreamerEntity} from '../../domain/models';
+import {Platform, TwitchUser, TwitchUserEntity} from '../../domain/models';
 import {logger} from '../../utils';
 
 
 export class TwitchUsersAPI implements IPlatformUsersAPI {
   readonly platform = Platform.Twitch;
   private cache = new Map < string, {
-    user: TwitchStreamer|null;
+    user: TwitchUser|null;
     timestamp: number
   }
   >();
   constructor(private api_client: ApiClient) {}
 
-  async getUsers(names: string[]): Promise<TwitchStreamer[]> {
+  async getUsers(names: string[]): Promise<TwitchUser[]> {
     if (names.length === 0) return [];
     try {
       const users = await this.api_client.users.getUsersByNames(names);
-      return users.map(u => TwitchStreamerEntity.fromHelixUser(u));
+      return users.map(u => TwitchUserEntity.fromHelixUser(u));
     } catch (error) {
       logger.error(`TwitchUsersAPI: Error resolving '${names}':`, error);
       throw error;
     }
   }
-  async getUser(name: string): Promise<TwitchStreamer|null> {
+  async getUser(name: string): Promise<TwitchUser|null> {
     if (!name) return null;
     const name_lower = name.toLowerCase();
     const cache_entry = this.cache.get(name_lower);
@@ -36,7 +36,7 @@ export class TwitchUsersAPI implements IPlatformUsersAPI {
     try {
       const user = await this.api_client.users.getUserByName(name_lower);
       const twitchStreamer =
-          user !== null ? TwitchStreamerEntity.fromHelixUser(user) : null;
+          user !== null ? TwitchUserEntity.fromHelixUser(user) : null;
 
       this.cache.set(name_lower, {user: twitchStreamer, timestamp: Date.now()});
 

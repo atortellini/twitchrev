@@ -1,11 +1,11 @@
 import {EventEmitter} from 'node:events';
 
 import {IPlatformStreamerLiveTracker, IPlatformStreamsAPI} from '../../domain/interfaces';
-import {LiveStream, Platform, Streamer} from '../../domain/models';
+import {LiveStream, Platform, User} from '../../domain/models';
 import {logger, Mutex} from '../../utils';
 
 type LiveStreamCb = (status: LiveStream) => void;
-type StreamerCb = (streamer: Streamer) => void;
+type StreamerCb = (streamer: User) => void;
 type StreamerId = string;
 type LiveStreamId = string;
 
@@ -16,7 +16,7 @@ type LiveStreamId = string;
  * modifying a couple methods
  */
 interface StreamerState {
-  streamer: Streamer, current_stream_id?: LiveStreamId
+  streamer: User, current_stream_id?: LiveStreamId
 }
 
 enum TrackerEvents {
@@ -44,7 +44,7 @@ export class PollingStreamerLiveTrackerSI implements
     this.tracked_streamer_mtx = new Mutex(`${this.platform}-poll-livetrkr`);
   }
 
-  async startTracking(streamer: Streamer): Promise<void> {
+  async startTracking(streamer: User): Promise<void> {
     return await this.tracked_streamer_mtx.withLock(async () => {
       if (streamer.platform !== this.platform) {
         throw new Error(`Invalid platform '${streamer.platform}' for ${
@@ -69,7 +69,7 @@ export class PollingStreamerLiveTrackerSI implements
     });
   }
 
-  async stopTracking(streamer: Streamer): Promise<void> {
+  async stopTracking(streamer: User): Promise<void> {
     return await this.tracked_streamer_mtx.withLock(async () => {
       if (this.tracked_streamers.delete(streamer.id)) {
         logger.info(`${this.platform} live tracker: Stopped tracking '${
@@ -86,13 +86,13 @@ export class PollingStreamerLiveTrackerSI implements
     });
   }
 
-  async getTrackedStreamers(): Promise<Streamer[]> {
+  async getTrackedStreamers(): Promise<User[]> {
     return await this.tracked_streamer_mtx.withLock(
         async () => [...this.tracked_streamers.values()].map(
             ss => ss.streamer));
   }
 
-  async isTracking(streamer: Streamer): Promise<boolean> {
+  async isTracking(streamer: User): Promise<boolean> {
     return await this.tracked_streamer_mtx.withLock(
         async () => this.tracked_streamers.has(streamer.id));
   }
