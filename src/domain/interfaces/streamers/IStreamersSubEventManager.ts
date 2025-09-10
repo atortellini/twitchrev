@@ -1,6 +1,6 @@
 import {User} from '../../models';
 
-export interface IStreamersSubEventManager {
-  startTracking(streamer: User): Promise<void>;
-  stopTracking(streamer: User): Promise<void>;
+export interface IStreamersSubEventManager<TUser extends User = User> {
+  startTracking(streamer: TUser): Promise<void>;
+  stopTracking(streamer: TUser): Promise<void>;
 }
