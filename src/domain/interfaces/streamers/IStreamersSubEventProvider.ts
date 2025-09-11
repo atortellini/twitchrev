@@ -1,8 +1,7 @@
-import {SubEvent, User} from '../../models';
+import {Platform, PlatformSubEvent, PlatformUser, TwitchUser, User} from '../../models';
 
-export interface IStreamersSubEventProvider<
-    TUser extends User = User, TSubEvent extends SubEvent = SubEvent> {
-  onSubEvent(callback: (event: TSubEvent) => void): void;
-  onStartTracking(callback: (streamer: TUser) => void): void;
-  onStopTracking(callback: (streamer: TUser) => void): void;
+export interface IStreamersSubEventProvider<TPlatforms extends Platform> {
+  onSubEvent(callback: (event: PlatformSubEvent<TPlatforms>) => void): void;
+  onStartTracking(callback: (streamer: PlatformUser<TPlatforms>) => void): void;
+  onStopTracking(callback: (streamer: PlatformUser<TPlatforms>) => void): void;
 }

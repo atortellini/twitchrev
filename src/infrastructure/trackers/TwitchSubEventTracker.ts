@@ -19,7 +19,7 @@ enum TrackerEvents {
 }
 
 export class TwitchSubEventTracker implements
-    IPlatformSubEventTracker<TwitchUser, TwitchAnySubEvent> {
+    IPlatformSubEventTracker<Platform.Twitch> {
   readonly platform = Platform.Twitch;
   private event_emitter = new EventEmitter();
   private subscription_map = new Map<StreamerId, SubscriptionInfo>();

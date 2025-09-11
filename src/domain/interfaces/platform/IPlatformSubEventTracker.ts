@@ -1,16 +1,16 @@
-import {Platform, SubEvent, User} from '../../models';
+import {Platform, PlatformSubEvent, PlatformUser} from '../../models';
 
-export interface IPlatformSubEventTracker<
-    TUser extends User, TSubEvent extends SubEvent> {
-  readonly platform: Platform;
 
-  startTracking(streamer: TUser): Promise<void>;
-  stopTracking(streamer: TUser): Promise<void>;
+export interface IPlatformSubEventTracker<P extends Platform> {
+  readonly platform: P;
 
-  getTrackedStreamers(): Promise<TUser[]>;
-  isTracking(streamer: TUser): Promise<boolean>;
+  startTracking(streamer: PlatformUser<P>): Promise<void>;
+  stopTracking(streamer: PlatformUser<P>): Promise<void>;
 
-  onSubEvent(callback: (event: TSubEvent) => void): void;
-  onStartTracking(callback: (streamer: TUser) => void): void;
-  onStopTracking(callback: (streamer: TUser) => void): void;
+  getTrackedStreamers(): Promise<PlatformUser<P>[]>;
+  isTracking(streamer: PlatformUser<P>): Promise<boolean>;
+
+  onSubEvent(callback: (event: PlatformSubEvent<P>) => void): void;
+  onStartTracking(callback: (streamer: PlatformUser<P>) => void): void;
+  onStopTracking(callback: (streamer: PlatformUser<P>) => void): void;
 }
