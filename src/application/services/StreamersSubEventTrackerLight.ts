@@ -1,6 +1,9 @@
 import {IPlatformSubEventTracker, IStreamersSubEventManager, IStreamersSubEventProvider} from '../../domain/interfaces';
-import {KickUser, Platform, PlatformSubEvent, PlatformUser} from '../../domain/models';
+import {Platform, PlatformSubEvent, PlatformUser} from '../../domain/models';
 import {logger} from '../../utils';
+
+type SubEventCb<P extends Platform> = (e: PlatformSubEvent<P>) => void;
+type StreamerCb<P extends Platform> = (streamer: PlatformUser<P>) => void;
 
 type ExtractPlatforms<T> =
     T extends IPlatformSubEventTracker<infer P>? P : never;
@@ -51,8 +54,8 @@ export class StreamersSubEventTrackerLight<
     });
   }
 
-  async getStreamersByPlatform<P extends TPlatforms>(platform: P):
-      Promise<PlatformUser<P>[]> {
+  async getStreamersByPlatform(platform: TPlatforms):
+      Promise<PlatformUser<TPlatforms>[]> {
     const tracker = this.tracker_map.get(platform)!;
 
     return await tracker.getTrackedStreamers();
@@ -65,13 +68,13 @@ export class StreamersSubEventTrackerLight<
     return await tracker.isTracking(streamer);
   }
 
-  onSubEvent(callback: (e: PlatformSubEvent<TPlatforms>) => void): void {
+  onSubEvent(callback: SubEventCb<TPlatforms>): void {
     this.tracker_map.values().forEach(pt => pt.onSubEvent(callback));
   }
-  onStartTracking(callback: (e: PlatformUser<TPlatforms>) => void): void {
+  onStartTracking(callback: StreamerCb<TPlatforms>): void {
     this.tracker_map.values().forEach(pt => pt.onStartTracking(callback));
   }
-  onStopTracking(callback: (e: PlatformUser<TPlatforms>) => void): void {
+  onStopTracking(callback: StreamerCb<TPlatforms>): void {
     this.tracker_map.values().forEach(pt => pt.onStopTracking(callback));
   }
 }
