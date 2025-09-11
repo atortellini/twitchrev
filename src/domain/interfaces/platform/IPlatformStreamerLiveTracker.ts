@@ -1,17 +1,17 @@
-import {LiveStream, Platform, User} from '../../models';
+import {Platform, PlatformLiveStream, PlatformUser} from '../../models';
 
-export interface IPlatformStreamerLiveTracker {
-  readonly platform: Platform;
+export interface IPlatformStreamerLiveTracker<P extends Platform> {
+  readonly platform: P;
 
-  startTracking(streamer: User): Promise<void>;
-  stopTracking(streamer: User): Promise<void>;
+  startTracking(streamer: PlatformUser<P>): Promise<void>;
+  stopTracking(streamer: PlatformUser<P>): Promise<void>;
 
-  getTrackedStreamers(): Promise<User[]>;
-  isTracking(streamer: User): Promise<boolean>;
+  getTrackedStreamers(): Promise<PlatformUser<P>[]>;
+  isTracking(streamer: PlatformUser<P>): Promise<boolean>;
 
-  onLive(callback: (status: LiveStream) => void): void;
-  onOffline(callback: (status: User) => void): void;
+  onLive(callback: (status: PlatformLiveStream<P>) => void): void;
+  onOffline(callback: (status: PlatformUser<P>) => void): void;
 
-  onStartTracking(callback: (streamer: User) => void): void;
-  onStopTracking(callback: (streamer: User) => void): void;
+  onStartTracking(callback: (streamer: PlatformUser<P>) => void): void;
+  onStopTracking(callback: (streamer: PlatformUser<P>) => void): void;
 }
