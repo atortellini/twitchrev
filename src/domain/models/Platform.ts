@@ -1,3 +1,4 @@
+import {TwitchLiveStream} from './LiveStream';
 import {TwitchAnySubEvent} from './SubEvent';
 import {TwitchUser} from './User';
 
@@ -6,10 +7,16 @@ export enum Platform {
 }
 
 export type PlatformTypeMap = {
-  [Platform.Twitch]: {user: TwitchUser, subevent: TwitchAnySubEvent},
+  [Platform.Twitch]: {
+    user: TwitchUser,
+    livestream: TwitchLiveStream,
+    subevent: TwitchAnySubEvent
+  },
 };
 
 export type PlatformUser<P extends Platform> = PlatformTypeMap[P]['user'];
+export type PlatformLiveStream<P extends Platform> =
+    PlatformTypeMap[P]['livestream'];
 export type PlatformSubEvent<P extends Platform> =
     PlatformTypeMap[P]['subevent'];
 
