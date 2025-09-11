@@ -1,11 +1,11 @@
 import {EventEmitter} from 'node:events';
 
 import {IPlatformStreamerLiveTracker, IPlatformStreamsAPI} from '../../domain/interfaces';
-import {LiveStream, Platform, User} from '../../domain/models';
+import {LiveStream, Platform, PlatformLiveStream, PlatformUser, User} from '../../domain/models';
 import {logger, Mutex} from '../../utils';
 
-type LiveStreamCb = (status: LiveStream) => void;
-type StreamerCb = (streamer: User) => void;
+type LiveStreamCb<P extends Platform> = (status: PlatformLiveStream<P>) => void;
+type StreamerCb<P extends Platform> = (streamer: PlatformUser<P>) => void;
 type StreamerId = string;
 type LiveStreamId = string;
 
@@ -15,9 +15,6 @@ type LiveStreamId = string;
  * the current livestreams and stuff for users of interafce. Would require
  * modifying a couple methods
  */
-interface StreamerState {
-  streamer: User, current_stream_id?: LiveStreamId
-}
 
 enum TrackerEvents {
   start_tracking = 'start-tracking',
@@ -26,25 +23,28 @@ enum TrackerEvents {
   offline = 'offline'
 }
 
-export class PollingStreamerLiveTrackerSI implements
-    IPlatformStreamerLiveTracker {
+interface StreamerState<P extends Platform> {
+  streamer: PlatformUser<P>, current_stream_id?: LiveStreamId
+}
+export class PollingStreamerLiveTrackerSI<P extends Platform> implements
+    IPlatformStreamerLiveTracker<P> {
   private event_emitter = new EventEmitter();
 
   private tracked_streamer_mtx;
-  private tracked_streamers = new Map<StreamerId, StreamerState>();
+  private tracked_streamers = new Map<StreamerId, StreamerState<P>>();
 
   private polling_interval: NodeJS.Timeout|null = null;
   private isPolling = false;
 
   constructor(
-      readonly platform: Platform, private platformAPI: IPlatformStreamsAPI,
+      readonly platform: P, private platformAPI: IPlatformStreamsAPI<P>,
       private pollingIntervalMs: number = 60000) {
     logger.warn(`${
         this.platform} live tracker: using setInterval; poll delays longer than the interval can skew results.`);
     this.tracked_streamer_mtx = new Mutex(`${this.platform}-poll-livetrkr`);
   }
 
-  async startTracking(streamer: User): Promise<void> {
+  async startTracking(streamer: PlatformUser<P>): Promise<void> {
     return await this.tracked_streamer_mtx.withLock(async () => {
       if (streamer.platform !== this.platform) {
         throw new Error(`Invalid platform '${streamer.platform}' for ${
@@ -69,7 +69,7 @@ export class PollingStreamerLiveTrackerSI implements
     });
   }
 
-  async stopTracking(streamer: User): Promise<void> {
+  async stopTracking(streamer: PlatformUser<P>): Promise<void> {
     return await this.tracked_streamer_mtx.withLock(async () => {
       if (this.tracked_streamers.delete(streamer.id)) {
         logger.info(`${this.platform} live tracker: Stopped tracking '${
@@ -86,27 +86,27 @@ export class PollingStreamerLiveTrackerSI implements
     });
   }
 
-  async getTrackedStreamers(): Promise<User[]> {
+  async getTrackedStreamers(): Promise<PlatformUser<P>[]> {
     return await this.tracked_streamer_mtx.withLock(
         async () => [...this.tracked_streamers.values()].map(
             ss => ss.streamer));
   }
 
-  async isTracking(streamer: User): Promise<boolean> {
+  async isTracking(streamer: PlatformUser<P>): Promise<boolean> {
     return await this.tracked_streamer_mtx.withLock(
         async () => this.tracked_streamers.has(streamer.id));
   }
 
-  onLive(callback: LiveStreamCb): void {
+  onLive(callback: LiveStreamCb<P>): void {
     this.event_emitter.on(TrackerEvents.live, callback);
   }
-  onOffline(callback: StreamerCb): void {
+  onOffline(callback: StreamerCb<P>): void {
     this.event_emitter.on(TrackerEvents.offline, callback);
   }
-  onStartTracking(callback: StreamerCb): void {
+  onStartTracking(callback: StreamerCb<P>): void {
     this.event_emitter.on(TrackerEvents.start_tracking, callback);
   }
-  onStopTracking(callback: StreamerCb): void {
+  onStopTracking(callback: StreamerCb<P>): void {
     this.event_emitter.on(TrackerEvents.stop_tracking, callback);
   }
 
@@ -182,8 +182,7 @@ export class PollingStreamerLiveTrackerSI implements
       }
       const streamerIds = [...this.tracked_streamers.keys()];
       try {
-        const streams: LiveStream[] =
-            await this.platformAPI.getStreams(streamerIds);
+        const streams = await this.platformAPI.getStreams(streamerIds);
         this.processStatusUpdates(streams);
       } catch (error) {
         logger.error(
