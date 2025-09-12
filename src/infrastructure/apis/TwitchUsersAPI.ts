@@ -5,7 +5,7 @@ import {Platform, TwitchUser, TwitchUserEntity} from '../../domain/models';
 import {logger} from '../../utils';
 
 
-export class TwitchUsersAPI implements IPlatformUsersAPI {
+export class TwitchUsersAPI implements IPlatformUsersAPI<Platform.Twitch> {
   readonly platform = Platform.Twitch;
   private cache = new Map < string, {
     user: TwitchUser|null;

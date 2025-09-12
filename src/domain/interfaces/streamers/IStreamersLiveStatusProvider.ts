@@ -1,8 +1,12 @@
-import {LiveStream, User} from '../../models';
+import {Platform, PlatformLiveStream, PlatformUser} from '../../models';
 
-export interface IStreamersLiveStatusProvider {
-  onStreamerWentLive(callback: (streamer: LiveStream) => void): void;
-  onStreamerWentOffline(callback: (streamer: User) => void): void;
-  onStreamerStartTracking(callback: (streamer: User) => void): void;
-  onStreamerStopTracking(callback: (streamer: User) => void): void;
+export interface IStreamersLiveStatusProvider<TPlatforms extends Platform> {
+  onStreamerWentLive(
+      callback: (streamer: PlatformLiveStream<TPlatforms>) => void): void;
+  onStreamerWentOffline(callback: (streamer: PlatformUser<TPlatforms>) => void):
+      void;
+  onStreamerStartTracking(
+      callback: (streamer: PlatformUser<TPlatforms>) => void): void;
+  onStreamerStopTracking(
+      callback: (streamer: PlatformUser<TPlatforms>) => void): void;
 }

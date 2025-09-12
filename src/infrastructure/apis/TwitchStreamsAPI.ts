@@ -4,7 +4,7 @@ import {IPlatformStreamsAPI} from '../../domain/interfaces';
 import {Platform, TwitchLiveStream, TwitchLiveStreamEntity} from '../../domain/models';
 import {logger} from '../../utils';
 
-export class TwitchStreamsAPI implements IPlatformStreamsAPI {
+export class TwitchStreamsAPI implements IPlatformStreamsAPI<Platform.Twitch> {
   readonly platform = Platform.Twitch;
 
   constructor(private api_client: ApiClient) {}

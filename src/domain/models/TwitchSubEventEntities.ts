@@ -39,7 +39,7 @@ export namespace TwitchResubEventEntity {
   export function fromChannelChatNotificationEvent(
       e: EventSubChannelChatResubNotificationEvent): TwitchResubEvent {
     const base = {
-      platform: Platform.Twitch,
+      platform: Platform.Twitch as const,
       broadcaster: {id: e.broadcasterId, name: e.broadcasterName},
       timestamp: new Date(),
       type: 'resub' as const,
@@ -75,7 +75,7 @@ export namespace TwitchSubGiftEventEntity {
   export function fromChannelChatNotificationEvent(
       e: EventSubChannelChatSubGiftNotificationEvent): TwitchSubGiftEvent {
     const base = {
-      platform: Platform.Twitch,
+      platform: Platform.Twitch as const,
       broadcaster: {id: e.broadcasterId, name: e.broadcasterName},
       timestamp: new Date(),
       type: 'sub_gift' as const,
@@ -100,7 +100,7 @@ export namespace TwitchCommunitySubGiftEventEntity {
       e: EventSubChannelChatCommunitySubGiftNotificationEvent):
       TwitchCommunitySubGiftEvent {
     const base = {
-      platform: Platform.Twitch,
+      platform: Platform.Twitch as const,
       broadcaster: {id: e.broadcasterId, name: e.broadcasterName},
       timestamp: new Date(),
       type: 'community_sub_gift' as const,
@@ -126,7 +126,7 @@ export namespace TwitchGiftPaidUpgradeEventEntity {
       e: EventSubChannelChatGiftPaidUpgradeNotificationEvent):
       TwitchGiftPaidUpgradeEvent {
     const base = {
-      platform: Platform.Twitch,
+      platform: Platform.Twitch as const,
       broadcaster: {id: e.broadcasterId, name: e.broadcasterName},
       timestamp: new Date(),
       type: 'gift_paid_upgrade' as const

@@ -1,41 +1,47 @@
 import {IPlatformSubEventTracker, IStreamersSubEventManager, IStreamersSubEventProvider} from '../../domain/interfaces';
-import {Platform} from '../../domain/models';
+import {Platform, PlatformSubEvent, PlatformUser} from '../../domain/models';
 import {logger} from '../../utils';
 
-type ExtractUser<T> =
-    T extends IPlatformSubEventTracker<infer U, any>? U : never;
-type ExtractEvent<T> =
-    T extends IPlatformSubEventTracker<any, infer E>? E : never;
+type SubEventCb<P extends Platform> = (e: PlatformSubEvent<P>) => void;
+type StreamerCb<P extends Platform> = (streamer: PlatformUser<P>) => void;
+
+type ExtractPlatforms<T> =
+    T extends IPlatformSubEventTracker<infer P>? P : never;
+type SupportedPlatforms<
+    T extends readonly IPlatformSubEventTracker<Platform>[]> =
+    ExtractPlatforms<T[number]>;
+
 
 export class StreamersSubEventTrackerLight<
-    TTrackers extends IPlatformSubEventTracker<any, any>[]> implements
-    IStreamersSubEventManager<ExtractUser<TTrackers[number]>>,
-    IStreamersSubEventProvider<
-        ExtractUser<TTrackers[number]>, ExtractEvent<TTrackers[number]>> {
-  private tracker_map: Map<Platform, IPlatformSubEventTracker<any, any>>;
+    const TTrackers extends readonly IPlatformSubEventTracker<Platform>[],
+                            TPlatforms extends
+        Platform = SupportedPlatforms<TTrackers>> implements
+    IStreamersSubEventManager<TPlatforms>,
+    IStreamersSubEventProvider<TPlatforms> {
+  private tracker_map: Map<TPlatforms, IPlatformSubEventTracker<TPlatforms>>;
 
   constructor(trackers: TTrackers) {
-    this.tracker_map = new Map(trackers.map(t => [t.platform, t]));
+    this.tracker_map = new Map(trackers.map(
+                           tracker => [tracker.platform, tracker] as const)) as
+        Map<TPlatforms, IPlatformSubEventTracker<TPlatforms>>;
   }
 
 
-  async startTracking(streamer: ExtractUser<TTrackers[number]>): Promise<void> {
-    return await this.withTracker(
-        streamer.platform, pt => pt.startTracking(streamer), {
-          errorMsg: (`Streamers sub tracker: Error while adding '${
-              streamer.name}' for '${streamer.platform}':`)
-        });
+  async startTracking<P extends TPlatforms>(streamer: PlatformUser<P>):
+      Promise<void> {
+    const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
+
+    return await tracker.startTracking(streamer);
   }
 
-  async stopTracking(streamer: ExtractUser<TTrackers[number]>): Promise<void> {
-    return await this.withTracker(
-        streamer.platform, pt => pt.stopTracking(streamer), {
-          errorMsg: `Streamers sub tracker: Error while removing '${
-              streamer.name}' for '${streamer.platform}':`
-        });
+  async stopTracking<P extends TPlatforms>(streamer: PlatformUser<P>):
+      Promise<void> {
+    const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
+
+    return await tracker.stopTracking(streamer);
   }
 
-  async getTrackedStreamers(): Promise<ExtractUser<TTrackers[number]>[]> {
+  async getTrackedStreamers(): Promise<PlatformUser<TPlatforms>[]> {
     const settled = await Promise.allSettled(
         [...this.tracker_map.values()].map(pt => pt.getTrackedStreamers()));
 
@@ -48,56 +54,27 @@ export class StreamersSubEventTrackerLight<
     });
   }
 
-  async getStreamersByPlatform<P extends TTrackers[number]['platform']>(
-      platform: P):
-      Promise<ExtractUser<Extract<TTrackers[number], {platform: P}>>[]> {
-    return await this.withTracker(platform, pt => pt.getTrackedStreamers(), {
-      errorMsg:
-          `Streamers sub tracker: Error while retrieving tracked streamers for '${
-              platform}':`
-    });
+  async getStreamersByPlatform(platform: TPlatforms):
+      Promise<PlatformUser<TPlatforms>[]> {
+    const tracker = this.tracker_map.get(platform)!;
+
+    return await tracker.getTrackedStreamers();
   }
 
-  async isStreamerTracked(streamer: ExtractUser<TTrackers[number]>):
+  async isStreamerTracked<P extends TPlatforms>(streamer: PlatformUser<P>):
       Promise<boolean> {
-    return await this.withTracker(
-        streamer.platform, pt => pt.isTracking(streamer), {
-          errorMsg: `Streamers sub tracker: Error while checking if '${
-              streamer.name}' is tracked on '${streamer.platform}':`
-        });
+    const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
+
+    return await tracker.isTracking(streamer);
   }
 
-  private async withTracker<T>(
-      platform: Platform,
-      action: (tracker: IPlatformSubEventTracker<any, any>) => Promise<T>,
-      opts: {onMissing?: T; onError?: T; errorMsg?: string;}): Promise<T> {
-    const {onMissing, onError, errorMsg} = opts ?? {};
-
-    const tracker = this.tracker_map.get(platform);
-    if (!tracker) {
-      logger.warn(
-          `Streamers sub tracker: Platform '${platform}' is not supported`);
-      if (onMissing !== undefined) return onMissing;
-      throw new Error(
-          `Platform '${platform}' is not supported for sub tracking`);
-    }
-
-    try {
-      return await action(tracker);
-    } catch (error) {
-      if (errorMsg) logger.error(errorMsg, error);
-      if (onError !== undefined) return onError;
-      throw error;
-    }
-  }
-
-  onSubEvent(callback: (e: ExtractEvent<TTrackers[number]>) => void): void {
+  onSubEvent(callback: SubEventCb<TPlatforms>): void {
     this.tracker_map.values().forEach(pt => pt.onSubEvent(callback));
   }
-  onStartTracking(callback: (e: ExtractUser<TTrackers[number]>) => void): void {
+  onStartTracking(callback: StreamerCb<TPlatforms>): void {
     this.tracker_map.values().forEach(pt => pt.onStartTracking(callback));
   }
-  onStopTracking(callback: (e: ExtractUser<TTrackers[number]>) => void): void {
+  onStopTracking(callback: StreamerCb<TPlatforms>): void {
     this.tracker_map.values().forEach(pt => pt.onStopTracking(callback));
   }
 }
