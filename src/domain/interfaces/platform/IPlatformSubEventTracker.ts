@@ -1,6 +1,7 @@
-import {Platform, PlatformLiveStream, PlatformUser} from '../../models';
+import {Platform, PlatformSubEvent, PlatformUser} from '../../models';
 
-export interface IPlatformStreamerLiveTracker<P extends Platform> {
+
+export interface IPlatformSubEventTracker<P extends Platform> {
   readonly platform: P;
 
   startTracking(streamer: PlatformUser<P>): Promise<void>;
@@ -9,9 +10,7 @@ export interface IPlatformStreamerLiveTracker<P extends Platform> {
   getTrackedStreamers(): Promise<PlatformUser<P>[]>;
   isTracking(streamer: PlatformUser<P>): Promise<boolean>;
 
-  onLive(callback: (status: PlatformLiveStream<P>) => void): void;
-  onOffline(callback: (status: PlatformUser<P>) => void): void;
-
+  onSubEvent(callback: (event: PlatformSubEvent<P>) => void): void;
   onStartTracking(callback: (streamer: PlatformUser<P>) => void): void;
   onStopTracking(callback: (streamer: PlatformUser<P>) => void): void;
 }

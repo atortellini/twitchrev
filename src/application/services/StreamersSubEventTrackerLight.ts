@@ -1,40 +1,41 @@
-import {IPlatformStreamerLiveTracker, IStreamersLiveStatusManager, IStreamersLiveStatusProvider, ITrackedStreamerRepository} from '../../domain/interfaces';
-import {Platform, PlatformLiveStream, PlatformUser} from '../../domain/models';
+import {IPlatformSubEventTracker, IStreamersSubEventManager, IStreamersSubEventProvider} from '../../domain/interfaces';
+import {Platform, PlatformSubEvent, PlatformUser} from '../../domain/models';
 import {logger} from '../../utils';
 
-type LiveStreamCb<P extends Platform> = (ls: PlatformLiveStream<P>) => void;
+type SubEventCb<P extends Platform> = (e: PlatformSubEvent<P>) => void;
 type StreamerCb<P extends Platform> = (streamer: PlatformUser<P>) => void;
 
 type ExtractPlatforms<T> =
-    T extends IPlatformStreamerLiveTracker<infer P>? P : never;
+    T extends IPlatformSubEventTracker<infer P>? P : never;
 type SupportedPlatforms<
-    T extends readonly IPlatformStreamerLiveTracker<Platform>[]> =
+    T extends readonly IPlatformSubEventTracker<Platform>[]> =
     ExtractPlatforms<T[number]>;
 
 
-export class StreamersLiveStatusTrackerLight<
-    const TTrackers extends readonly IPlatformStreamerLiveTracker<Platform>[],
+export class StreamersSubEventTrackerLight<
+    const TTrackers extends readonly IPlatformSubEventTracker<Platform>[],
                             TPlatforms extends
         Platform = SupportedPlatforms<TTrackers>> implements
-    IStreamersLiveStatusManager<TPlatforms>,
-    IStreamersLiveStatusProvider<TPlatforms> {
-  private tracker_map:
-      Map<TPlatforms, IPlatformStreamerLiveTracker<TPlatforms>>;
+    IStreamersSubEventManager<TPlatforms>,
+    IStreamersSubEventProvider<TPlatforms> {
+  private tracker_map: Map<TPlatforms, IPlatformSubEventTracker<TPlatforms>>;
 
-  constructor(private trackers: TTrackers) {
+  constructor(trackers: TTrackers) {
     this.tracker_map = new Map(trackers.map(
                            tracker => [tracker.platform, tracker] as const)) as
-        Map<TPlatforms, IPlatformStreamerLiveTracker<TPlatforms>>
+        Map<TPlatforms, IPlatformSubEventTracker<TPlatforms>>;
   }
 
 
-  async startTracking(streamer: PlatformUser<TPlatforms>): Promise<void> {
+  async startTracking<P extends TPlatforms>(streamer: PlatformUser<P>):
+      Promise<void> {
     const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
 
     return await tracker.startTracking(streamer);
   }
 
-  async stopTracking(streamer: PlatformUser<TPlatforms>): Promise<void> {
+  async stopTracking<P extends TPlatforms>(streamer: PlatformUser<P>):
+      Promise<void> {
     const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
 
     return await tracker.stopTracking(streamer);
@@ -47,10 +48,10 @@ export class StreamersLiveStatusTrackerLight<
     return settled.flatMap(p => {
       if (p.status === 'fulfilled') return p.value;
       logger.error(
-          'Streamers live tracker: Error when retrieving tracked streamers:',
+          'Streamers sub tracker: Error when retrieving tracked streamers:',
           p.reason);
       return [];
-    })
+    });
   }
 
   async getStreamersByPlatform(platform: TPlatforms):
@@ -60,23 +61,20 @@ export class StreamersLiveStatusTrackerLight<
     return await tracker.getTrackedStreamers();
   }
 
-  async isStreamerTracked(streamer: PlatformUser<TPlatforms>):
+  async isStreamerTracked<P extends TPlatforms>(streamer: PlatformUser<P>):
       Promise<boolean> {
     const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
 
     return await tracker.isTracking(streamer);
   }
 
-  onStreamerWentLive(callback: LiveStreamCb<TPlatforms>): void {
-    this.tracker_map.values().forEach(pt => pt.onLive(callback));
+  onSubEvent(callback: SubEventCb<TPlatforms>): void {
+    this.tracker_map.values().forEach(pt => pt.onSubEvent(callback));
   }
-  onStreamerWentOffline(callback: StreamerCb<TPlatforms>): void {
-    this.tracker_map.values().forEach(pt => pt.onOffline(callback));
-  }
-  onStreamerStartTracking(callback: StreamerCb<TPlatforms>): void {
+  onStartTracking(callback: StreamerCb<TPlatforms>): void {
     this.tracker_map.values().forEach(pt => pt.onStartTracking(callback));
   }
-  onStreamerStopTracking(callback: StreamerCb<TPlatforms>): void {
+  onStopTracking(callback: StreamerCb<TPlatforms>): void {
     this.tracker_map.values().forEach(pt => pt.onStopTracking(callback));
   }
 }
