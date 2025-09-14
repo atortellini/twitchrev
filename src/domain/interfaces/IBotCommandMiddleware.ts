@@ -1,5 +1,5 @@
-import { ChatMessage } from '../models';
+import {TwitchChatCommand} from '../models';
 
 export interface IBotCommandMiddleware {
-    canExecute(message: ChatMessage): boolean;
+  canExecute(command: TwitchChatCommand): boolean;
 }
