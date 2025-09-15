@@ -39,7 +39,8 @@ export class TwitchSubEventTracker implements
       channel: streamer,
       sub: this.eventsub_ws.onChannelChatNotification(
           streamer.id, this.authorized_user.id,
-          this.handleChatNotificationEvent)
+          (e: EventSubChannelChatNotificationEvent) =>
+              this.handleChatNotificationEvent(e))
     });
 
     this.event_emitter.emit(TrackerEvents.start_tracking, streamer);
