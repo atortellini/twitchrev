@@ -1,35 +1,39 @@
-export interface ChatContext {
-    channelId: string;
-    channelName: string;
-    userId: string;
-    username: string;
-    isModerator: boolean;
-    isBroadcaster: boolean;
+import {ChatMessage} from '@twurple/chat';
+
+export interface TwitchChatMessage {
+  readonly channel: string;
+  readonly user: string;
+  readonly content: string;
+  readonly context: ChatMessage;
 }
 
-export interface ChatMessage {
-    content: string;
-    context: ChatContext;
+export interface TwitchChatCommand extends TwitchChatMessage {
+  readonly prefix: string;
+  readonly trigger: string;
+  readonly rest: string;
 }
 
-export class ChatMessageEntity implements ChatMessage {
-    constructor(
-        public readonly content: string,
-        public readonly context: ChatContext,
-        public readonly timestamp: Date = new Date()
-    ) {}
+export namespace TwitchChatMessageEntity {
+  export function fromTwurpleMessageEvent(
+      channel: string, user: string, text: string,
+      msg: ChatMessage): TwitchChatMessage {
+    return {channel, user, content: text, context: msg};
+  }
 
-    isCommand(prefix: string = '$'): boolean {
-        return this.content.startsWith(prefix)
-    }
+  export function isCommand(msg: TwitchChatMessage, prefix: string = '$'):
+      boolean {
+    return msg.content.startsWith(prefix);
+  }
 
-    getCommand(prefix: string = '$'): string {
-        if (!this.isCommand(prefix)) return '';
-        return this.content.split(' ', 1)[0].substring(prefix.length);
-    }
-
-    getArgs(prefix: string = '$'): string[] {
-        if (!this.isCommand(prefix)) return [];
-        return this.content.split(' ').slice(1);
-    }
+  export function getCommand(msg: TwitchChatMessage, prefix: string = '$'):
+      TwitchChatCommand|null {
+    if (!TwitchChatMessageEntity.isCommand(msg, prefix)) return null;
+    const tmp = msg.content.split(' ');
+    return {
+      prefix,
+      trigger: tmp[0].substring(prefix.length),
+      rest: tmp.slice(1).join(' '),
+      ...msg
+    };
+  }
 }
