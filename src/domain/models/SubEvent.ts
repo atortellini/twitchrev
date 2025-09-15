@@ -155,11 +155,11 @@ export interface TwitchPrimePaidUpgradeEvent extends TwitchBaseSubEvent {
  */
 
 export namespace SubEventGuards {
+  export function isTwitchAnySubEvent(event: SubEvent):
+      event is TwitchAnySubEvent {
+    return event.platform === Platform.Twitch;
+  }
   export namespace Twitch {
-    export function isTwitchBaseSubEvent(event: SubEvent):
-        event is TwitchBaseSubEvent {
-      return event.platform === Platform.Twitch;
-    }
 
     export function isTwitchSubEvent(event: TwitchBaseSubEvent):
         event is TwitchSubEvent {
@@ -244,6 +244,18 @@ export namespace SubEventGuards {
     export function isTwitchPrimePaidUpgradeEvent(event: TwitchBaseSubEvent):
         event is TwitchPrimePaidUpgradeEvent {
       return event.type === 'prime_paid_upgrade';
+    }
+
+    export function isGiftRelated(event: TwitchBaseSubEvent):
+        event is TwitchResubEventGift|TwitchSubGiftEvent
+        |TwitchCommunitySubGiftEvent|TwitchGiftPaidUpgradeEvent {
+      if (isTwitchResubEvent(event)) {
+        return isTwitchResubEventGift(event);
+      }
+
+      return isTwitchSubGiftEvent(event) ||
+          isTwitchCommunitySubGiftEvent(event) ||
+          isTwitchGiftPaidUpgradeEvent(event);
     }
   }
 }
