@@ -21,7 +21,7 @@ export class StreamersLiveStatusTrackerLight<
   private tracker_map:
       Map<TPlatforms, IPlatformStreamerLiveTracker<TPlatforms>>;
 
-  constructor(private trackers: TTrackers) {
+  constructor(trackers: TTrackers) {
     this.tracker_map = new Map(trackers.map(
                            tracker => [tracker.platform, tracker] as const)) as
         Map<TPlatforms, IPlatformStreamerLiveTracker<TPlatforms>>
@@ -53,8 +53,8 @@ export class StreamersLiveStatusTrackerLight<
     })
   }
 
-  async getStreamersByPlatform(platform: TPlatforms):
-      Promise<PlatformUser<TPlatforms>[]> {
+  async getStreamersByPlatform<P extends TPlatforms>(platform: P):
+      Promise<PlatformUser<P>[]> {
     const tracker = this.tracker_map.get(platform)!;
 
     return await tracker.getTrackedStreamers();
