@@ -48,11 +48,7 @@ export class TwitchClientFactory {
             expiresIn: null,
             obtainmentTimestamp: 0
           },
-          [
-            'chat:read',
-            'chat:edit',
-            'user:read:chat',
-          ]);
+          ['chat']);
 
 
       const _api_client = new ApiClient({authProvider});
