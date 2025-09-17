@@ -80,6 +80,15 @@ namespace SessionMetricsFactory {
   }
 }
 
+export namespace SessionMetricsFormatter {
+  export function formatTwitchSessionMetrics(
+      name: string, metrics: TwitchSessionMetrics): string {
+    const {tier1, tier2, tier3, totals} = metrics.subscriptions;
+    return `${name}: ${totals.all} sub(s) | T1:${tier1.total} T2:${
+        tier2.total} T3:${tier3.total}`;
+  }
+}
+
 namespace SubEventProcessor {
   export function updateMetrics<P extends Platform>(
       metrics: PlatformSessionMetrics<P>, subevent: PlatformSubEvent<P>): void {
