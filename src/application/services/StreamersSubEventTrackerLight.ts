@@ -5,37 +5,26 @@ import {logger} from '../../utils';
 type SubEventCb<P extends Platform> = (e: PlatformSubEvent<P>) => void;
 type StreamerCb<P extends Platform> = (streamer: PlatformUser<P>) => void;
 
-type ExtractPlatforms<T> =
-    T extends IPlatformSubEventTracker<infer P>? P : never;
-type SupportedPlatforms<
-    T extends readonly IPlatformSubEventTracker<Platform>[]> =
-    ExtractPlatforms<T[number]>;
 
-
-export class StreamersSubEventTrackerLight<
-    const TTrackers extends readonly IPlatformSubEventTracker<Platform>[],
-                            TPlatforms extends
-        Platform = SupportedPlatforms<TTrackers>> implements
-    IStreamersSubEventManager<TPlatforms>,
-    IStreamersSubEventProvider<TPlatforms> {
+export class StreamersSubEventTrackerLight<TPlatforms extends Platform =
+                                                                  Platform>
+    implements IStreamersSubEventManager<TPlatforms>,
+               IStreamersSubEventProvider<TPlatforms> {
   private tracker_map: Map<TPlatforms, IPlatformSubEventTracker<TPlatforms>>;
 
-  constructor(trackers: TTrackers) {
-    this.tracker_map = new Map(trackers.map(
-                           tracker => [tracker.platform, tracker] as const)) as
-        Map<TPlatforms, IPlatformSubEventTracker<TPlatforms>>;
+  constructor(trackers: readonly IPlatformSubEventTracker<TPlatforms>[]) {
+    this.tracker_map =
+        new Map(trackers.map(tracker => [tracker.platform, tracker]));
   }
 
 
-  async startTracking<P extends TPlatforms>(streamer: PlatformUser<P>):
-      Promise<void> {
+  async startTracking(streamer: PlatformUser<TPlatforms>): Promise<void> {
     const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
 
     return await tracker.startTracking(streamer);
   }
 
-  async stopTracking<P extends TPlatforms>(streamer: PlatformUser<P>):
-      Promise<void> {
+  async stopTracking(streamer: PlatformUser<TPlatforms>): Promise<void> {
     const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
 
     return await tracker.stopTracking(streamer);
@@ -54,14 +43,14 @@ export class StreamersSubEventTrackerLight<
     });
   }
 
-  async getStreamersByPlatform(platform: TPlatforms):
-      Promise<PlatformUser<TPlatforms>[]> {
+  async getStreamersByPlatform<P extends TPlatforms>(platform: P):
+      Promise<PlatformUser<P>[]> {
     const tracker = this.tracker_map.get(platform)!;
 
     return await tracker.getTrackedStreamers();
   }
 
-  async isStreamerTracked<P extends TPlatforms>(streamer: PlatformUser<P>):
+  async isStreamerTracked(streamer: PlatformUser<TPlatforms>):
       Promise<boolean> {
     const tracker = this.tracker_map.get(streamer.platform as TPlatforms)!;
 

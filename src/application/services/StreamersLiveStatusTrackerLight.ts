@@ -5,26 +5,17 @@ import {logger} from '../../utils';
 type LiveStreamCb<P extends Platform> = (ls: PlatformLiveStream<P>) => void;
 type StreamerCb<P extends Platform> = (streamer: PlatformUser<P>) => void;
 
-type ExtractPlatforms<T> =
-    T extends IPlatformStreamerLiveTracker<infer P>? P : never;
-type SupportedPlatforms<
-    T extends readonly IPlatformStreamerLiveTracker<Platform>[]> =
-    ExtractPlatforms<T[number]>;
 
-
-export class StreamersLiveStatusTrackerLight<
-    const TTrackers extends readonly IPlatformStreamerLiveTracker<Platform>[],
-                            TPlatforms extends
-        Platform = SupportedPlatforms<TTrackers>> implements
-    IStreamersLiveStatusManager<TPlatforms>,
-    IStreamersLiveStatusProvider<TPlatforms> {
+export class StreamersLiveStatusTrackerLight<TPlatforms extends Platform =
+                                                                    Platform>
+    implements IStreamersLiveStatusManager<TPlatforms>,
+               IStreamersLiveStatusProvider<TPlatforms> {
   private tracker_map:
       Map<TPlatforms, IPlatformStreamerLiveTracker<TPlatforms>>;
 
-  constructor(trackers: TTrackers) {
-    this.tracker_map = new Map(trackers.map(
-                           tracker => [tracker.platform, tracker] as const)) as
-        Map<TPlatforms, IPlatformStreamerLiveTracker<TPlatforms>>
+  constructor(trackers: readonly IPlatformStreamerLiveTracker<TPlatforms>[]) {
+    this.tracker_map =
+        new Map(trackers.map(tracker => [tracker.platform, tracker]));
   }
 
 
