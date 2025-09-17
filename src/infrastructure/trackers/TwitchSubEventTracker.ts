@@ -27,7 +27,7 @@ export class TwitchSubEventTracker implements
 
   constructor(
       private eventsub_ws: EventSubWsListener,
-      private authorized_user: TwitchUser) {}
+      private authorized_user_id: string) {}
 
   async startTracking(streamer: TwitchUser): Promise<void> {
     if (this.subscription_map.has(streamer.id)) {
@@ -38,7 +38,7 @@ export class TwitchSubEventTracker implements
     this.subscription_map.set(streamer.id, {
       channel: streamer,
       sub: this.eventsub_ws.onChannelChatNotification(
-          streamer.id, this.authorized_user.id,
+          streamer.id, this.authorized_user_id,
           (e: EventSubChannelChatNotificationEvent) =>
               this.handleChatNotificationEvent(e))
     });
