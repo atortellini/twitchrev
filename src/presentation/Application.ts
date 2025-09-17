@@ -65,6 +65,8 @@ export class Application {
 
       this.bot = new Bot(commands, twitch.chat, this.config.bot.channels);
 
+      twitch.events.start();
+
       await this.bot.start();
 
       logger.info(`[APPLICATION] Started succesfully`);
