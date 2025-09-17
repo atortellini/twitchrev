@@ -1,7 +1,7 @@
 import {IBotCommand, IPlatformUsersAPI} from '../../domain/interfaces';
 import {Platform, SUPPORTED_PLATFORMS, TwitchChatCommand} from '../../domain/models';
 import {CreatorMiddleware} from '../middleware/CreatorMiddleware';
-import {ILiveStreamSessionMetricsProvider} from '../services/LiveStreamsSessionMetricsCoordinator';
+import {ILiveStreamSessionMetricsProvider, SessionMetricsFormatter} from '../services/LiveStreamsSessionMetricsCoordinator';
 
 export class SubsCommand implements IBotCommand {
   readonly trigger = 'subs';
@@ -57,6 +57,7 @@ export class SubsCommand implements IBotCommand {
           user.platform}`;
     }
 
-    return `${user.name}: ${metrics.subscriptions.totals.all} sub(s) total`;
+    return SessionMetricsFormatter.formatTwitchSessionMetrics(
+        user.name, metrics);
   }
 }
