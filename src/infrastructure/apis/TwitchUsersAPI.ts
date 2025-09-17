@@ -12,6 +12,7 @@ export class TwitchUsersAPI implements IPlatformUsersAPI<Platform.Twitch> {
     timestamp: number
   }
   >();
+  static readonly logger_tag = '[TWITCH-USERS-API]';
   constructor(private api_client: ApiClient) {}
 
   async getUsers(names: string[]): Promise<TwitchUser[]> {
@@ -20,7 +21,8 @@ export class TwitchUsersAPI implements IPlatformUsersAPI<Platform.Twitch> {
       const users = await this.api_client.users.getUsersByNames(names);
       return users.map(u => TwitchUserEntity.fromHelixUser(u));
     } catch (error) {
-      logger.error(`TwitchUsersAPI: Error resolving '${names}':`, error);
+      logger.error(
+          `${TwitchUsersAPI.logger_tag} Error resolving '${names}':`, error);
       throw error;
     }
   }
@@ -42,7 +44,8 @@ export class TwitchUsersAPI implements IPlatformUsersAPI<Platform.Twitch> {
 
       return twitchStreamer;
     } catch (error) {
-      logger.error(`TwitchUsersAPI: Error resolving '${name}':`, error);
+      logger.error(
+          `${TwitchUsersAPI.logger_tag} Error resolving '${name}':`, error);
       throw error;
     }
   }

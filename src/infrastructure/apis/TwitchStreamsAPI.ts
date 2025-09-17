@@ -6,6 +6,7 @@ import {logger} from '../../utils';
 
 export class TwitchStreamsAPI implements IPlatformStreamsAPI<Platform.Twitch> {
   readonly platform = Platform.Twitch;
+  static readonly logger_tag = '[TWITCH-STREAMS-API]';
 
   constructor(private api_client: ApiClient) {}
 
@@ -16,7 +17,8 @@ export class TwitchStreamsAPI implements IPlatformStreamsAPI<Platform.Twitch> {
           await this.api_client.streams.getStreamsByUserIds(streamerIds);
       return streams.map(hs => TwitchLiveStreamEntity.fromHelixStream(hs));
     } catch (error) {
-      logger.error('TwitchStreamsAPI: Error getting streams:', error);
+      logger.error(
+          `${TwitchStreamsAPI.logger_tag} Error getting streams:`, error);
       throw error;
     }
   }

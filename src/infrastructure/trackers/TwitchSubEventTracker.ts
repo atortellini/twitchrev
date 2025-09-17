@@ -23,6 +23,7 @@ export class TwitchSubEventTracker implements
   readonly platform = Platform.Twitch;
   private event_emitter = new EventEmitter();
   private subscription_map = new Map<StreamerId, SubscriptionInfo>();
+  static readonly logger_tag = '[TWITCH-SUB-TRACKER]';
 
 
   constructor(
@@ -51,10 +52,12 @@ export class TwitchSubEventTracker implements
     if (entry) {
       entry.sub.stop();
       this.subscription_map.delete(streamer.id);
-      logger.info(`Twitch sub tracker: Stopped tracking '${streamer.name}'`);
+      logger.info(`${TwitchSubEventTracker.logger_tag} Stopped tracking '${
+          streamer.name}'`);
       this.event_emitter.emit(TrackerEvents.stop_tracking);
     } else {
-      logger.info(`Twitch sub tracker: Was not tracking '${streamer.name}'`);
+      logger.info(`${TwitchSubEventTracker.logger_tag} Was not tracking '${
+          streamer.name}'`);
     }
   }
 

@@ -26,11 +26,11 @@ export class Application {
   private streamer_session_metrics?:
       LiveStreamSessionMetricsCoordinator<Platform>;
 
-
+  static readonly logger_tag = '[APPLICATION]';
   constructor(private config: ApplicationConfig) {}
 
   async start(): Promise<void> {
-    logger.info('[APPLICATION] Starting...');
+    logger.info(`${Application.logger_tag} Starting...`);
 
     try {
       const twitch = await TwitchClientFactory.create(this.config.twitch);
@@ -69,9 +69,9 @@ export class Application {
 
       await this.bot.start();
 
-      logger.info(`[APPLICATION] Started succesfully`);
+      logger.info(`${Application.logger_tag} Started succesfully`);
     } catch (error) {
-      logger.error(`[APPLICATION] Failed to start:`, error);
+      logger.error(`${Application.logger_tag} Failed to start:`, error);
       throw error;
     }
   }
