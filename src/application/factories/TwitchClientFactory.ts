@@ -24,20 +24,30 @@ export interface TwitchClients {
 }
 
 export class TwitchClientFactory {
+  static readonly logger_tag = '[TWITCH-CLIENT-FACTORY]';
+
   static async create(config: TwitchConfig): Promise<TwitchClients> {
     try {
       const authProvider = new RefreshingAuthProvider(
           {clientId: config.clientId, clientSecret: config.clientSecret});
 
       authProvider.onRefresh(async (userId, new_token_data) => {
-        logger.info(`Twitch token refreshed for user: ${userId}`);
+        logger.info(`${
+            TwitchClientFactory.logger_tag} Twitch token refreshed for user: ${
+            userId}`);
         try {
           const filepath = path.resolve(config.tokenFilePath);
           await fs.writeFile(
               filepath, JSON.stringify(new_token_data, null, 2), 'utf-8');
-          logger.info(`Saved new token data to ${filepath}`);
+          logger.info(
+              `${TwitchClientFactory.logger_tag} Saved new token data to ${
+                  filepath}`);
         } catch (error) {
-          logger.error(`Failed to persist refreshed token:`, error);
+          logger.error(
+              `${
+                  TwitchClientFactory
+                      .logger_tag} Failed to persist refreshed token:`,
+              error);
         }
       });
 
@@ -55,7 +65,8 @@ export class TwitchClientFactory {
       const _chat_client = new ChatClient({authProvider});
       const _eventsub_ws = new EventSubWsListener({apiClient: _api_client});
 
-      logger.info('Twitch providers created successfully');
+      logger.info(`${
+          TwitchClientFactory.logger_tag} Twitch clients created successfully`);
 
       return {
         api: _api_client,
@@ -63,7 +74,9 @@ export class TwitchClientFactory {
         events: _eventsub_ws,
       };
     } catch (error) {
-      logger.error('Failed to create Twitch providers', error);
+      logger.error(
+          `${TwitchClientFactory.logger_tag} Failed to create Twitch clients`,
+          error);
       throw error;
     }
   }

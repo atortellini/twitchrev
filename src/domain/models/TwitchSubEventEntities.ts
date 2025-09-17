@@ -159,6 +159,7 @@ export namespace TwitchPrimePaidUpgradeEventEntity {
 }
 
 export namespace TwitchSubEventFactory {
+  const logger_tag = '[TWITCH-SUBEVENT-FACTORY]';
   export function fromChannelChatNotificationEvent(
       e: EventSubChannelChatNotificationEvent): TwitchAnySubEvent|undefined {
     switch (e.type) {
@@ -176,8 +177,7 @@ export namespace TwitchSubEventFactory {
             .fromChannelChatNotificationEvent(e);
       }
       case 'gift_paid_upgrade': {
-        logger.warn(
-            'TwitchSubEventFactory: GiftPaidUpgradeEvent being created...')
+        logger.warn(`${logger_tag} GiftPaidUpgradeEvent being created...`)
         return TwitchGiftPaidUpgradeEventEntity
             .fromChannelChatNotificationEvent(e);
       }
@@ -186,8 +186,8 @@ export namespace TwitchSubEventFactory {
             .fromChannelChatNotificationEvent(e);
       }
       default: {
-        logger.info(
-            'TwitchSubEventFactory: Ignoring ChannelChatNotifcationEvent of non-sub type');
+        logger.info(`${
+            logger_tag} Ignoring ChannelChatNotifcationEvent of non-sub type`);
         return undefined;
       }
     }

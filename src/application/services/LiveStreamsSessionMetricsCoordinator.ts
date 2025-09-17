@@ -101,7 +101,9 @@ namespace SubEventProcessor {
       metrics: TwitchSessionMetrics, subevent: TwitchAnySubEvent): void {
     if (SubEventGuards.Twitch.isTwitchGiftPaidUpgradeEvent(subevent) ||
         SubEventGuards.Twitch.isTwitchCommunitySubGiftEvent(subevent)) {
-      logger.warn(`[SESSION-METRICS] Ignoring event: '${subevent.type}'`);
+      logger.warn(
+          `${LiveStreamSessionMetricsCoordinator.logger_tag} Ignoring event: '${
+              subevent.type}'`);
       return;
     }
 
@@ -118,13 +120,16 @@ namespace SubEventProcessor {
     metrics.subscriptions[tier_key].total++;
     metrics.subscriptions.totals.all++;
 
-    logger.info(`[SESSION_METRICS] Sub event processed for '${
+    logger.info(`${
+        LiveStreamSessionMetricsCoordinator
+            .logger_tag} Sub event processed for '${
         subevent.broadcaster.name}': '${subevent.type}' `);
   }
 }
 
 export class LiveStreamSessionMetricsCoordinator<TPlatforms extends Platform>
     implements ILiveStreamSessionMetricsProvider<TPlatforms> {
+  static readonly logger_tag = '[SESSION-METRICS]';
   private readonly session_map =
       new Map<StreamerKeyGenerator.StreamerKey, StreamSession<TPlatforms>>();
   private readonly key_gen = StreamerKeyGenerator;
@@ -159,15 +164,17 @@ export class LiveStreamSessionMetricsCoordinator<TPlatforms extends Platform>
     this.live_status_provider.onStreamerStartTracking(streamer => {
       const key = this.key_gen.fromUser(streamer);
       this.session_map.set(key, {isLive: false});
-      logger.debug(`[SESSION-METRICS] Started tracking '${streamer.name}' on '${
-          streamer.platform}'`);
+      logger.debug(`${
+          LiveStreamSessionMetricsCoordinator.logger_tag} Started tracking '${
+          streamer.name}' on '${streamer.platform}'`);
     });
 
     this.live_status_provider.onStreamerStopTracking(streamer => {
       const key = this.key_gen.fromUser(streamer);
       this.session_map.delete(key);
-      logger.debug(`[SESSION-METRICS] Stopped tracking '${streamer.name}' on '${
-          streamer.platform}'`);
+      logger.debug(`${
+          LiveStreamSessionMetricsCoordinator.logger_tag} Stopped tracking '${
+          streamer.name}' on '${streamer.platform}'`);
     });
 
     this.live_status_provider.onStreamerWentLive(stream => {
@@ -176,16 +183,16 @@ export class LiveStreamSessionMetricsCoordinator<TPlatforms extends Platform>
 
       this.session_map.set(key, {isLive: true, stream, metrics});
 
-      logger.info(`[SESSION-METRICS] '${stream.user_name}' went live on '${
-          stream.platform}'`);
+      logger.info(`${LiveStreamSessionMetricsCoordinator.logger_tag} '${
+          stream.user_name}' went live on '${stream.platform}'`);
     });
 
     this.live_status_provider.onStreamerWentOffline(streamer => {
       const key = this.key_gen.fromUser(streamer);
       this.session_map.set(key, {isLive: false});
 
-      logger.info(`[SESSION-METRICS] '${streamer.name}' went offline on '${
-          streamer.platform}'`);
+      logger.info(`${LiveStreamSessionMetricsCoordinator.logger_tag} '${
+          streamer.name}' went offline on '${streamer.platform}'`);
     });
 
     this.subevent_provider.onSubEvent(e => {
@@ -198,16 +205,18 @@ export class LiveStreamSessionMetricsCoordinator<TPlatforms extends Platform>
     const session = this.session_map.get(key);
 
     if (!session) {
-      logger.debug(
-          `[SESSION-METRICS] Ignoring sub event for untracked streamer: ${
-              e.broadcaster.name}`);
+      logger.debug(`${
+          LiveStreamSessionMetricsCoordinator
+              .logger_tag} Ignoring sub event for untracked streamer: ${
+          e.broadcaster.name}`);
       return;
     }
 
     if (!session.isLive) {
-      logger.debug(
-          `[SESSION-METRICS] Ignoring sub event for offline streamer: ${
-              e.broadcaster.name}`);
+      logger.debug(`${
+          LiveStreamSessionMetricsCoordinator
+              .logger_tag} Ignoring sub event for offline streamer: ${
+          e.broadcaster.name}`);
       return;
     }
 

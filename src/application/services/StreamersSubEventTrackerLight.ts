@@ -11,6 +11,7 @@ export class StreamersSubEventTrackerLight<TPlatforms extends Platform =
                                                                   Platform>
     implements IStreamersSubEventManager<TPlatforms>,
                IStreamersSubEventProvider<TPlatforms> {
+  static readonly logger_tag = '[STREAMER-SUB-TRACKER]';
   private tracker_map: Map<TPlatforms, IPlatformSubEventTracker<TPlatforms>>;
 
   constructor(trackers: readonly IPlatformSubEventTracker<TPlatforms>[]) {
@@ -38,7 +39,9 @@ export class StreamersSubEventTrackerLight<TPlatforms extends Platform =
     return settled.flatMap(p => {
       if (p.status === 'fulfilled') return p.value;
       logger.error(
-          'Streamers sub tracker: Error when retrieving tracked streamers:',
+          `${
+              StreamersSubEventTrackerLight
+                  .logger_tag} Error when retrieving tracked streamers:`,
           p.reason);
       return [];
     });

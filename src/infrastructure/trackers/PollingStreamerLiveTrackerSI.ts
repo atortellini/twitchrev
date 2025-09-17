@@ -36,12 +36,16 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
   private polling_interval: NodeJS.Timeout|null = null;
   private isPolling = false;
 
+  private logger_tag: string;
+
   constructor(
       readonly platform: P, private platformAPI: IPlatformStreamsAPI<P>,
       private pollingIntervalMs: number = 60000) {
+    this.logger_tag = `[${this.platform.toUpperCase()}-LIVE-TRACKER]`;
+
     logger.warn(`${
-        this.platform} live tracker: using setInterval; poll delays longer than the interval can skew results.`);
-    this.tracked_streamer_mtx = new Mutex(`${this.platform}-poll-livetrkr`);
+        this.logger_tag} Uses setInterval; poll delays longer than the interval can skew results.`);
+    this.tracked_streamer_mtx = new Mutex(`${this.platform}-POLL-LIVE-TRACKER`);
   }
 
   async startTracking(streamer: PlatformUser<P>): Promise<void> {
@@ -58,7 +62,7 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
 
       this.tracked_streamers.set(streamer.id, {streamer});
 
-      logger.info(`${this.platform} live tracker: Started tracking '${
+      logger.info(`${this.logger_tag} Started tracking '${
           streamer.name}' (ID: ${streamer.id})`);
 
       this.event_emitter.emit(TrackerEvents.start_tracking, streamer);
@@ -72,16 +76,14 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
   async stopTracking(streamer: PlatformUser<P>): Promise<void> {
     return await this.tracked_streamer_mtx.withLock(async () => {
       if (this.tracked_streamers.delete(streamer.id)) {
-        logger.info(`${this.platform} live tracker: Stopped tracking '${
-            streamer.name}'`);
+        logger.info(`${this.logger_tag} Stopped tracking '${streamer.name}'`);
         this.event_emitter.emit(TrackerEvents.stop_tracking, streamer);
 
         if (this.tracked_streamers.size === 0) {
           this.stopPolling();
         }
       } else {
-        logger.info(`${this.platform} live tracker: Was not tracking '${
-            streamer.name}'`);
+        logger.info(`${this.logger_tag} Was not tracking '${streamer.name}'`);
       }
     });
   }
@@ -129,27 +131,27 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
    */
   private startPolling(): void {
     if (this.polling_interval) {
-      logger.warn(`${this.platform} live tracker: Already running...`);
+      logger.warn(`${this.logger_tag} Already running...`);
       return;
     }
-    logger.info(`${this.platform} live tracker: Starting...`);
+    logger.info(`${this.logger_tag} Starting...`);
 
     this.schedulePoll();
     this.runPoll();
 
-    logger.info(`${this.platform} live tracker: Running`);
+    logger.info(`${this.logger_tag} Running`);
   }
 
   private stopPolling(): void {
     if (!this.polling_interval) {
-      logger.warn(`${this.platform} live tracker: Already stopped...`);
+      logger.warn(`${this.logger_tag} Already stopped...`);
       return;
     }
-    logger.info(`${this.platform} live tracker: Stopping...`);
+    logger.info(`${this.logger_tag} Stopping...`);
 
     clearInterval(this.polling_interval);
     this.polling_interval = null;
-    logger.info(`${this.platform} live tracker: Stopped`);
+    logger.info(`${this.logger_tag} Stopped`);
   }
 
   private schedulePoll(): void {
@@ -157,8 +159,7 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
       if (!this.isPolling)
         this.runPoll();
       else
-        logger.warn(
-            `${this.platform} live tracker: Previous poll has not finished. 
+        logger.warn(`${this.logger_tag} Previous poll has not finished. 
         Consider adjusting poll interval.`);
     }, this.pollingIntervalMs);
   }
@@ -168,8 +169,7 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
     try {
       await this.poll();
     } catch (error) {
-      logger.error(
-          `${this.platform} live tracker: Error during polling:`, error);
+      logger.error(`${this.logger_tag} Error during polling:`, error);
     } finally {
       this.isPolling = false;
     }
@@ -186,8 +186,7 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
         this.processStatusUpdates(streams);
       } catch (error) {
         logger.error(
-            `${this.platform} live tracker: Error polling ${this.platform}:`,
-            error);
+            `${this.logger_tag} Error polling ${this.platform}:`, error);
       }
     });
   }
@@ -209,8 +208,8 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
       if (wasLive && !isLive) {
         streamer_state.current_stream_id = undefined;
         this.event_emitter.emit(TrackerEvents.offline, streamer_state.streamer);
-        logger.info(`${this.platform} live tracker: ${
-            streamer_state.streamer.name} is offline`);
+        logger.info(
+            `${this.logger_tag} ${streamer_state.streamer.name} is offline`);
       } else if (isLive) {
         const isNewStream =
             !wasLive || current_stream.id !== previous_stream_id;
@@ -218,8 +217,8 @@ export class PollingStreamerLiveTrackerSI<P extends Platform> implements
         if (isNewStream) {
           streamer_state.current_stream_id = current_stream.id;
           this.event_emitter.emit(TrackerEvents.live, current_stream);
-          logger.info(`${this.platform} live tracker: ${
-              streamer_state.streamer.name} is live`);
+          logger.info(
+              `${this.logger_tag} ${streamer_state.streamer.name} is live`);
         }
       }
     }

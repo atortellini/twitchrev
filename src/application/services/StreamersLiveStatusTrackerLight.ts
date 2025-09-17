@@ -11,6 +11,7 @@ export class StreamersLiveStatusTrackerLight<TPlatforms extends Platform =
                                                                     Platform>
     implements IStreamersLiveStatusManager<TPlatforms>,
                IStreamersLiveStatusProvider<TPlatforms> {
+  static readonly logger_tag = 'STREAMER-LIVE-TRACKER';
   private tracker_map:
       Map<TPlatforms, IPlatformStreamerLiveTracker<TPlatforms>>;
 
@@ -39,7 +40,9 @@ export class StreamersLiveStatusTrackerLight<TPlatforms extends Platform =
     return settled.flatMap(p => {
       if (p.status === 'fulfilled') return p.value;
       logger.error(
-          'Streamers live tracker: Error when retrieving tracked streamers:',
+          `${
+              StreamersLiveStatusTrackerLight
+                  .logger_tag} Error when retrieving tracked streamers:`,
           p.reason);
       return [];
     })
