@@ -1,4 +1,5 @@
-import {IBotCommand, IPlatformUsersAPI} from '../../domain/interfaces';
+import {IBotCommand} from '../../domain/interfaces/chatbot';
+import {IPlatformUsersAPI} from '../../domain/interfaces/platform';
 import {Platform, SUPPORTED_PLATFORMS, TwitchChatCommand} from '../../domain/models';
 import {CreatorMiddleware} from '../middleware/CreatorMiddleware';
 import {ILiveStreamSessionMetricsProvider, SessionMetricsFormatter} from '../services/LiveStreamsSessionMetricsCoordinator';

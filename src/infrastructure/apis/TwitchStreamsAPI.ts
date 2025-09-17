@@ -1,6 +1,6 @@
 import {ApiClient} from '@twurple/api';
 
-import {IPlatformStreamsAPI} from '../../domain/interfaces';
+import {IPlatformStreamsAPI} from '../../domain/interfaces/platform';
 import {Platform, TwitchLiveStream, TwitchLiveStreamEntity} from '../../domain/models';
 import {logger} from '../../utils';
 

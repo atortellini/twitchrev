@@ -1,5 +1,3 @@
-
-
 import {SubsCommand} from '../application/commands/SubsCommand';
 import {TrackCommand} from '../application/commands/TrackCommand';
 import {TwitchClientFactory, TwitchConfig} from '../application/factories';

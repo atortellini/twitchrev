@@ -1,4 +1,5 @@
-import {IPlatformStreamerLiveTracker, IStreamersLiveStatusManager, IStreamersLiveStatusProvider, ITrackedStreamerRepository} from '../../domain/interfaces';
+import {IPlatformStreamerLiveTracker} from '../../domain/interfaces/platform';
+import {IStreamersLiveStatusManager, IStreamersLiveStatusProvider} from '../../domain/interfaces/streamers';
 import {Platform, PlatformLiveStream, PlatformUser} from '../../domain/models';
 import {logger} from '../../utils';
 

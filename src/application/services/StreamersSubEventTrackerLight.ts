@@ -1,4 +1,5 @@
-import {IPlatformSubEventTracker, IStreamersSubEventManager, IStreamersSubEventProvider} from '../../domain/interfaces';
+import {IPlatformSubEventTracker} from '../../domain/interfaces/platform';
+import {IStreamersSubEventManager, IStreamersSubEventProvider} from '../../domain/interfaces/streamers';
 import {Platform, PlatformSubEvent, PlatformUser} from '../../domain/models';
 import {logger} from '../../utils';
 

@@ -1,6 +1,6 @@
 import {ChatClient, ChatMessage} from '@twurple/chat';
 
-import {IBotCommand} from '../domain/interfaces';
+import {IBotCommand} from '../domain/interfaces/chatbot';
 import {TwitchChatMessageEntity} from '../domain/models';
 import {logger} from '../utils';
 

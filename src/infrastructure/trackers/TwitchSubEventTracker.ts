@@ -2,7 +2,7 @@ import {EventSubChannelChatNotificationEvent, EventSubSubscription} from '@twurp
 import {EventSubWsListener} from '@twurple/eventsub-ws';
 import {EventEmitter} from 'node:events';
 
-import {IPlatformSubEventTracker} from '../../domain/interfaces';
+import {IPlatformSubEventTracker} from '../../domain/interfaces/platform';
 import {Platform, TwitchAnySubEvent, TwitchUser} from '../../domain/models';
 import {TwitchSubEventFactory} from '../../domain/models/TwitchSubEventEntities';
 import {logger} from '../../utils';

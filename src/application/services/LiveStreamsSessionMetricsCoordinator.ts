@@ -1,4 +1,4 @@
-import {IStreamersLiveStatusProvider, IStreamersSubEventProvider} from '../../domain/interfaces';
+import {IStreamersLiveStatusProvider, IStreamersSubEventProvider} from '../../domain/interfaces/streamers';
 import {LiveStream, Platform, PlatformLiveStream, PlatformSubEvent, PlatformUser, SubEvent, SubEventGuards, TwitchAnySubEvent, User} from '../../domain/models';
 import {logger} from '../../utils';
 

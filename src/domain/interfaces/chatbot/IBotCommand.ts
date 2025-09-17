@@ -1,4 +1,4 @@
-import {TwitchChatCommand} from '../models';
+import {TwitchChatCommand} from '../../models';
 
 import {IBotCommandMiddleware} from './IBotCommandMiddleware';
 

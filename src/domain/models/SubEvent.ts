@@ -261,5 +261,3 @@ export namespace SubEventGuards {
 }
 
 export namespace SubEventEntity {}
-
-export namespace TwitchSubEventEntity {}

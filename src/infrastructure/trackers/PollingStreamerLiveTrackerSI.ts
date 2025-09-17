@@ -1,7 +1,7 @@
 import {EventEmitter} from 'node:events';
 
-import {IPlatformStreamerLiveTracker, IPlatformStreamsAPI} from '../../domain/interfaces';
-import {LiveStream, Platform, PlatformLiveStream, PlatformUser, User} from '../../domain/models';
+import {IPlatformStreamerLiveTracker, IPlatformStreamsAPI} from '../../domain/interfaces/platform';
+import {LiveStream, Platform, PlatformLiveStream, PlatformUser} from '../../domain/models';
 import {logger, Mutex} from '../../utils';
 
 type LiveStreamCb<P extends Platform> = (status: PlatformLiveStream<P>) => void;
