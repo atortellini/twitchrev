@@ -28,8 +28,7 @@ export class Mutex {
 
   release(): void {
     if (!this.isLocked) {
-      throw new Error(
-          `${this.logger_tag} Attempted to be release unlocked mutex`);
+      throw new Error(`${this.logger_tag} Attempted to release unlocked mutex`);
     }
 
     if (this.queue.length > 0) {

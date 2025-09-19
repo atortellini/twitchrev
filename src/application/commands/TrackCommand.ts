@@ -79,8 +79,8 @@ export class TrackCommand implements IBotCommand {
           `Failed to ${directive} tracking for some users: ${reasons}`);
     }
 
-    return `${directive === 'start' ? 'Now tracking' : 'Stopped tracking'} ${
-        usernames.length > 1 ? 'users' :
-                               'user'}: ${usernames.join(', ')} on ${platform}`;
+    return `${directive === 'start' ? 'Now' : 'Stopped'} tracking user${
+        usernames.length > 1 ? 's' :
+                               ''}: ${usernames.join(', ')} on ${platform}`;
   }
 }
